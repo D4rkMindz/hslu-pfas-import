@@ -16,6 +16,7 @@ dependencies = [
     { name = "jupyterlab" },
     { name = "pandas" },
     { name = "pyarrow" },
+    { name = "requests" },
 ]
 
 [package.metadata]
@@ -24,6 +25,7 @@ requires-dist = [
     { name = "jupyterlab", specifier = ">=4.6.4" },
     { name = "pandas", specifier = ">=3.0.6" },
     { name = "pyarrow", specifier = ">=25.0.1" },
+    { name = "requests", specifier = ">=2.34.2" },
 ]
 
 [[package]]
