@@ -3,3 +3,6 @@ up:
 
 down:
 	@docker compose down
+
+lint:
+	@uv run ruff check --watch --fix

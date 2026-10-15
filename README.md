@@ -30,7 +30,9 @@ This project uses [ruff](https://docs.astral.sh/ruff/) as linter.
 Ruff can either run once or in the background (with and without fixing errors)
 
 ```shell
-uv run ruff check --watch --fix
+uv run ruff check
+# or 
+make lint
 ```
 
 `--fix`: automatically fixes errors (that can be fixed)
