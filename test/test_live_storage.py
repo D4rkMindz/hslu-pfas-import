@@ -2,6 +2,7 @@ import uuid
 
 from pfas_import import storage
 
+
 class TestEnsureBucketAgainstLiveSeaweedFs:
     """Fixture-based test against the real local SeaweedFS (see docker-compose.yaml).
 

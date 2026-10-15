@@ -1,4 +1,3 @@
-import uuid
 from unittest.mock import MagicMock, call
 
 from pfas_import import storage
