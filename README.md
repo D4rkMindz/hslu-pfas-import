@@ -23,5 +23,18 @@ This project uses PostgreSQL (with PostGIS)
 ## Object Storage
 This project uses SeaweedFS for object storage. 
 
+# Development
+
+## Linting
+This project uses [ruff](https://docs.astral.sh/ruff/) as linter.
+Ruff can either run once or in the background (with and without fixing errors)
+
+```shell
+uv run ruff check --watch --fix
+```
+
+`--fix`: automatically fixes errors (that can be fixed)
+`--watch`: run in the background on change
+
 # License
 proprietary (for now)
