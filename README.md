@@ -21,7 +21,13 @@ _or alternatively copy the command from the @docker line below_ `up:` _in the fi
 This project uses PostgreSQL (with PostGIS)
 
 ## Object Storage
-This project uses SeaweedFS for object storage. 
+This project uses [SeaweedFS](https://s3fs.readthedocs.io/en/latest/api.html) for object storage.
+
+The following backends are made available:
+
+- [Filer UI](http://localhost:8888/)
+- [Master UI](http://localhost:9333)
+- [Admin UI](http://localhost:23646)
 
 # Development
 
