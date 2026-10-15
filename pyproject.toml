@@ -7,5 +7,9 @@ dependencies = [
     "jupyterlab>=4.6.4",
     "pandas>=3.0.6",
     "pyarrow>=25.0.1",
+    "pydantic>=2.14.1",
+    "pydantic-settings>=2.16.0",
+    "python-dotenv>=1.2.4",
     "requests>=2.34.2",
+    "s3fs>=2026.9.0",
 ]
