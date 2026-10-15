@@ -6,3 +6,6 @@ down:
 
 lint:
 	@uv run ruff check --watch --fix
+
+test:
+	@uv run pytest

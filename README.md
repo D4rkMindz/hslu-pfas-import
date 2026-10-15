@@ -44,5 +44,16 @@ make lint
 `--fix`: automatically fixes errors (that can be fixed)
 `--watch`: run in the background on change
 
+# Testing
+
+This project uses [pytest]() as testing framework
+Run all pytests in the `test/ folder` using the following command:
+
+```sh
+uv run pytest
+# or
+make test
+```
+
 # License
 proprietary (for now)
