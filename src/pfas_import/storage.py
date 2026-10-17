@@ -5,13 +5,12 @@ import os
 import s3fs
 from dotenv import load_dotenv
 
-from pfas_import.config import Settings
+from pfas_import.config import settings as s
 
 load_dotenv()
 
 
 def get_s3_fs() -> s3fs.S3FileSystem:
-    s = Settings()
     # S3_ENDPOINT_URL unset -> real AWS S3.
     # Key/secret unset -> boto credential chain (e.g. IAM role in prod).
     return s3fs.S3FileSystem(
