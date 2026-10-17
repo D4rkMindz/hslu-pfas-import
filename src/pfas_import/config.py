@@ -8,7 +8,7 @@ load_dotenv(find_dotenv())
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        extra="ignore",
+        extra="forbid",
     )
 
     s3_endpoint_url: str = Field(alias="S3_ENDPOINT_URL")
