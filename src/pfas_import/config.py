@@ -18,8 +18,5 @@ class Settings(BaseSettings):
     s3_raw_bucket: str = Field(alias="S3_RAW_BUCKET")
 
 
-try:
-    settings = Settings()
-except ValidationError as e:
-    print(f"Configuration error:\n{e}", file=sys.stderr)
-    sys.exit(1)
+# crash on error
+settings = Settings()
