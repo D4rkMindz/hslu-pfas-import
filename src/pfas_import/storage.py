@@ -1,13 +1,9 @@
 """S3-compatible object storage (SeaweedFS locally, AWS S3 in prod)."""
-
 import os
 
 import s3fs
-from dotenv import load_dotenv
 
 from pfas_import.config import settings as s
-
-load_dotenv()
 
 
 def get_s3_fs() -> s3fs.S3FileSystem:

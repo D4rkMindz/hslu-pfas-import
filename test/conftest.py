@@ -1,18 +1,26 @@
 import pytest
 
-from pfas_import.config import Settings
+from pfas_import import config, storage
 from pfas_import.storage import get_s3_fs
 
 
 @pytest.fixture
 def s3_env(monkeypatch):
-    """A complete, fake set of S3 env vars so Settings() never touches the real .env."""
+    """A complete, fake set of S3 env vars so Settings() never touches the real .env.
+
+    Also patches the `storage.s` settings singleton in place: it's bound at
+    import time (before this fixture's env vars exist), so code under test
+    that reads `storage.s` would otherwise still see the real .env values.
+    """
     monkeypatch.setenv("S3_ENDPOINT_URL", "http://localhost:8333")
     monkeypatch.setenv("S3_REGION", "us-east-1")
     monkeypatch.setenv("S3_ACCESS_KEY", "test-key")
     monkeypatch.setenv("S3_SECRET_KEY", "test-secret")
     monkeypatch.setenv("S3_RAW_BUCKET", "raw")
-    return Settings()
+    test_settings = config.Settings()
+    monkeypatch.setattr(config, "settings", test_settings)
+    monkeypatch.setattr(storage, "s", test_settings)
+    return test_settings
 
 
 @pytest.fixture(scope="session")
