@@ -3,5 +3,57 @@
 It is difficult to convey the extent of the problem on an individual level. Therefore we aim to
 find an abstract correlation between the PFAS measurements and the surrounding Industries.
 
+# Setup
+First, copy ``/.env.example`` to ``/.env``
+Then adjust the values in it according to the documentation inside
+
+# Infrastructure
+The infrastructure is managed using docker compose. Spin it up using [make](https://www.gnu.org/software/make/):
+
+```bash
+make up
+```
+
+_or alternatively copy the command from the @docker line below_ `up:` _in the file `./Makefile`_
+
+
+## Database
+This project uses PostgreSQL (with PostGIS)
+
+## Object Storage
+This project uses [SeaweedFS](https://s3fs.readthedocs.io/en/latest/api.html) for object storage.
+
+The following backends are made available:
+
+- [Filer UI](http://localhost:8888/)
+- [Master UI](http://localhost:9333)
+- [Admin UI](http://localhost:23646)
+
+# Development
+
+## Linting
+This project uses [ruff](https://docs.astral.sh/ruff/) as linter.
+Ruff can either run once or in the background (with and without fixing errors)
+
+```shell
+uv run ruff check
+# or 
+make lint
+```
+
+`--fix`: automatically fixes errors (that can be fixed)
+`--watch`: run in the background on change
+
+# Testing
+
+This project uses [pytest]() as testing framework
+Run all pytests in the `test/ folder` using the following command:
+
+```sh
+uv run pytest
+# or
+make test
+```
+
 # License
 proprietary (for now)

@@ -1,0 +1,46 @@
+##############################
+##          RUFF            ##
+##############################
+# https://docs.astral.sh/ruff/configuration/
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".git",
+    ".git-rewrite",
+    ".ipynb_checkpoints",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+]
+
+# Same as Black.
+line-length = 88
+indent-width = 4
+
+# Assume Python 3.11
+target-version = "py311"
+
+[lint]
+# select = [...]  # See the Default Rules page for the full listing.
+ignore = []
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+[format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
