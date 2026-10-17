@@ -1,3 +1,7 @@
+"""  Handles all static global variables (loaded vom .env and project-interns)
+config.py = systemic Defaults + persistend values
+.env = Enduser-overridable Settings + dynamische Runtime-Results
+"""
 from pathlib import Path
 
 from pydantic import Field
@@ -6,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 class Settings(BaseSettings):
+    """ All settings that can be defined in .env or have a default value. """
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",
         extra="forbid",
@@ -22,5 +27,4 @@ class Settings(BaseSettings):
     postgres_password: str = Field(alias="POSTGRES_PASSWORD")
 
 
-# crash on error
 settings = Settings()
