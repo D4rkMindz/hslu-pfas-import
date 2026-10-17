@@ -27,4 +27,4 @@ class Settings(BaseSettings):
     postgres_password: str = Field(alias="POSTGRES_PASSWORD")
 
 
-settings = Settings()
+settings = Settings() # pyright: ignore[reportCallIssue]
