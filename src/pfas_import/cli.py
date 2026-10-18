@@ -4,8 +4,9 @@ import argparse
 
 from s3fs import S3FileSystem
 
-from pfas_import.config import settings as s
 from pfas_import import storage
+from pfas_import.config import settings as s
+
 
 def extract(source: str, target_file: str) -> None:
     print(f"Hello world!\nsource={source}\ntarget_file={target_file}")
