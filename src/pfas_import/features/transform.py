@@ -305,12 +305,16 @@ def _compress_dataframe(df : pd.DataFrame) -> pd.DataFrame:
 
 def load_and_transform(df: pd.DataFrame) -> pd.DataFrame:
     """Extract TierA and TierB features from the raw dataset."""
-
+    logger.info("Starting tier1 feature extraction...")
     feature_df: pd.DataFrame = _extract_tier1_features(df)
+
+    logger.info("Starting tier2 feature extraction...")
     feature_df = _extract_tier2_features(df, feature_df)
 
+    logger.info("Converting to datetime...")
     feature_df['date'] = pd.to_datetime(feature_df["date"])
 
+    logger.info("Compressing dataframe...")
     feature_df = _compress_dataframe(feature_df)
 
     return feature_df
