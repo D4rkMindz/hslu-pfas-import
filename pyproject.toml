@@ -1,5 +1,9 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "26h-deng"
+name = "pfas-import"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
@@ -12,6 +16,9 @@ dependencies = [
     "requests>=2.34.2",
     "s3fs>=2026.9.0",
 ]
+
+[project.scripts]
+pfas_import = "pfas_import.cli:main"
 
 [dependency-groups]
 dev = [
