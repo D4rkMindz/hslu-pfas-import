@@ -75,7 +75,7 @@ def read_source_dataframe(fs: Any, bucket: str, key: str) -> pd.DataFrame:
     logger.info("Reading Parquet from s3://%s/%s", bucket, key)
 
     with fs.open(f"{bucket}/{key}", "rb") as source:
-        df = pd.read_parquet(source, engine="pyarrow")
+        df = pd.read_parquet(source, engine="pyarrow").query('country=="France"')
 
     logger.info(
         "Parquet loaded: %s rows, %s columns in %.1f s",
