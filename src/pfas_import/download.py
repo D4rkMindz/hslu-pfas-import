@@ -11,6 +11,7 @@ from kestra import Kestra
 
 from pfas_import.config import settings, setup_logging
 from pfas_import.storage import get_s3_fs
+from pfas_import.features.constants import SOURCE_KEY, STATE_TABLE
 
 logging.basicConfig(
     level=settings.LOG_LEVEL,
@@ -22,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 CHUNK_SIZE = 8 * 1024 * 1024  # 8 MiB
 LOG_INTERVAL_BYTES = 100 * 1024 * 1024  # 100 MiB
-STATE_TABLE = "pfas_ingestion_state"
 
 
 def get_postgres_connection() -> psycopg.Connection:
@@ -86,7 +86,7 @@ def get_last_successful_hash() -> str | None:
 
 def download_dataset() -> dict[str, Any]:
     """Download to a fixed S3 key and detect changes."""
-    s3_key = f"{settings.s3_raw_bucket}/last_download.parquet"
+    s3_key = f"{settings.s3_raw_bucket}/{SOURCE_KEY}"
 
     logger.info("Starting PFAS-Hub dataset download.")
     logger.info("Source URL: %s", settings.DATASET_URL)
