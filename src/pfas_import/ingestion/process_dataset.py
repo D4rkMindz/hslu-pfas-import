@@ -1,5 +1,9 @@
 
-"""Transform the latest Parquet file and publish the current feature dataset."""
+"""Transform the latest Parquet file and publish the current feature dataset.
+- compares hash of last_download_parquet before ingestion
+- if changed then it transforms the features and saves it in postgresql "pfas_features" table
+- Updates hash of last ingestion an returns usable values for Kestra
+"""
 
 from __future__ import annotations
 

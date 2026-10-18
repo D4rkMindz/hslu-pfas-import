@@ -1,4 +1,8 @@
-"""Download the PFAS-Hub dataset for the Kestra pipeline."""
+"""Download the PFAS-Hub dataset for the Kestra pipeline.
+- pulls the parquet from pfas-datahub and saves it as S3://raw/last_download.parquet
+- checks if the hash of downloaded parquet changed since last ingestion by comparing it with hash in postgres.pfas_ingestion_state
+- Produces an return value usable by Kestra
+"""
 
 import hashlib
 import logging
