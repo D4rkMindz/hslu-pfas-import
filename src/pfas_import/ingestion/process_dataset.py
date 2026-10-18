@@ -15,16 +15,16 @@ from typing import Any
 
 import pandas as pd
 import psycopg
-from psycopg import sql
 from kestra import Kestra
+from psycopg import sql
 
 from pfas_import.config import settings, setup_logging
-from pfas_import.storage import get_s3_fs
-from pfas_import.ingestion.transform import load_and_transform
 from pfas_import.ingestion.constants import (
     SOURCE_KEY,
     STATE_TABLE,
 )
+from pfas_import.ingestion.transform import load_and_transform
+from pfas_import.storage import get_s3_fs
 
 FEATURE_TABLE: str = "pfas_features"
 STAGING_TABLE: str = "_pfas_features_staging"

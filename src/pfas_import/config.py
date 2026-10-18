@@ -2,9 +2,9 @@
 config.py = systemic Defaults + persistend values
 .env = Enduser-overridable Settings + dynamische Runtime-Results
 """
+import logging
 from pathlib import Path
 from typing import Literal
-import logging
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict

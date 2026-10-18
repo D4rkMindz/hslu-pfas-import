@@ -14,8 +14,8 @@ import requests
 from kestra import Kestra
 
 from pfas_import.config import settings, setup_logging
-from pfas_import.storage import get_s3_fs
 from pfas_import.ingestion.constants import SOURCE_KEY, STATE_TABLE
+from pfas_import.storage import get_s3_fs
 
 logging.basicConfig(
     level=settings.LOG_LEVEL,

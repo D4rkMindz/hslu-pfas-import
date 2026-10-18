@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 from sklearn.neighbors import BallTree
 
-
 logger = logging.getLogger(__name__)
 
 EARTH_RADIUS_KM: float = 6371.0088
