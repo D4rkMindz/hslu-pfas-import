@@ -1,0 +1,63 @@
+services:
+  kestra-db:
+    image: postgres:18
+    container_name: "pi-kestra-db"
+    environment:
+      POSTGRES_DB: ${KESTRA_POSTGRES_DB}
+      POSTGRES_USER: ${KESTRA_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${KESTRA_POSTGRES_PASSWORD:?Set KESTRA_POSTGRES_PASSWORD in .env}
+    volumes:
+      - kestra_db:/var/lib/postgresql
+    networks:
+      - development
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kestra -d kestra"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  kestra:
+    image: kestra/kestra:v1.1
+    container_name: "pi-kestra"
+    restart: unless-stopped
+    # Kestra, by default, has a termination grace period of 5m. We need to wait a little more to be sure no active tasks are running.
+    stop_grace_period: 6m
+    # Note that this setup with a root user is intended for development purpose.
+    # Our base image runs without root, but the Docker Compose implementation needs root to access the Docker socket
+    user: root
+    command: server standalone --config /etc/kestra/application.yaml
+    ports:
+      - "127.0.0.1:${KESTRA_PORT:-8080}:8080"
+    environment:
+      DATASOURCES_POSTGRES_URL: jdbc:postgresql://kestra-db:5432/${KESTRA_POSTGRES_DB}
+      DATASOURCES_POSTGRES_DRIVERCLASSNAME: org.postgresql.Driver
+      DATASOURCES_POSTGRES_USERNAME: ${KESTRA_POSTGRES_USER:?Set KESTRA_POSTGRES_USER in .env}
+      DATASOURCES_POSTGRES_PASSWORD: ${KESTRA_POSTGRES_PASSWORD:?Set KESTRA_POSTGRES_PASSWORD in .env}
+      KESTRA_LOGIN_USER: ${KESTRA_UI_USER:?Set KESTRA_UI_USER in .env}
+      KESTRA_LOGIN_PASSWORD: ${KESTRA_UI_PASSWORD:?Set KESTRA_UI_PASSWORD in .env}
+      KESTRA_PORT: ${KESTRA_PORT:-8080}
+      ENV_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      ENV_DB_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      ENV_DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      ENV_KESTRA_DATA_DIR: ${KESTRA_DATA_DIR:?Set KESTRA_DATA_DIR in .env}
+      ENV_S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:? Set S3_ENDPOINT_URL in .env}
+      ENV_S3_RAW_BUCKET: ${S3_RAW_BUCKET:? Set S3_RAW_BUCKET in .env}
+      ENV_S3_IMPORT_BUCKET: ${S3_IMPORT_BUCKET:? Set S3_IMPORT_BUCKET in .env}
+      ENV_S3_ACCESS_KEY: ${S3_ACCESS_KEY:? Set S3_ACCESS_KEY in .env}
+      ENV_S3_SECRET_KEY: ${S3_SECRET_KEY:? Set S3_SECRET_KEY in .env}
+      ENV_NETWORK: development
+    volumes:
+      - kestra_files:/app/storage
+      - ./application.yaml:/etc/kestra/application.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./files:/files
+    networks:
+      - development
+      - production
+    depends_on:
+      kestra-db:
+        condition: service_healthy
+
+volumes:
+  kestra_db:
+  kestra_files:
