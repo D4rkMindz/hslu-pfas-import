@@ -183,13 +183,14 @@ def ensure_state_table(conn: psycopg.Connection) -> None:
     )
 
 
+
 def publish_feature_dataframe(
     conn: psycopg.Connection,
     df: pd.DataFrame,
     source_sha256: str,
     source_key: str,
 ) -> None:
-    """Stage, validate and atomically publish the feature dataset."""
+    """Atomically rebuild and publish the feature dataset."""
 
     if df.empty:
         raise ValueError(
@@ -254,10 +255,7 @@ def publish_feature_dataframe(
         )
 
         copy_started_at = time.monotonic()
-        logger.info(
-            "Starting PostgreSQL COPY: %s rows",
-            len(df),
-        )
+        logger.info("Starting PostgreSQL COPY: %s rows", len(df))
 
         with conn.cursor().copy(copy_statement) as copy:
             for i, row in enumerate(dataframe_rows(df), start=1):
@@ -265,7 +263,8 @@ def publish_feature_dataframe(
 
                 if i % COPY_LOG_INTERVAL == 0:
                     logger.info(
-                        "PostgreSQL COPY progress: %s / %s rows (%.1f%%, %.1f s)",
+                        "PostgreSQL COPY progress: %s / %s rows "
+                        "(%.1f%%, %.1f s)",
                         i,
                         len(df),
                         100 * i / len(df),
@@ -278,11 +277,24 @@ def publish_feature_dataframe(
             time.monotonic() - copy_started_at,
         )
 
-        logger.info("Ensuring production table public.%s exists", FEATURE_TABLE)
+        logger.info(
+            "Rebuilding production table public.%s from current DataFrame schema",
+            FEATURE_TABLE,
+        )
+
+        # Drop the old table and create a new one using the current
+        # DataFrame's schema, copied from the staging table.
+        # Both operations are transactional: on failure, PostgreSQL
+        # rolls back and restores the previous production table.
+        conn.execute(
+            sql.SQL("DROP TABLE IF EXISTS public.{}").format(
+                sql.Identifier(FEATURE_TABLE)
+            )
+        )
 
         conn.execute(
             sql.SQL("""
-                CREATE TABLE IF NOT EXISTS public.{} (
+                CREATE TABLE public.{} (
                     LIKE pg_temp.{} INCLUDING ALL
                 )
             """).format(
@@ -291,36 +303,12 @@ def publish_feature_dataframe(
             )
         )
 
-        existing_columns = conn.execute(
-            """
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name = %s
-            ORDER BY ordinal_position
-            """,
-            (FEATURE_TABLE,),
-        ).fetchall()
-
-        existing_names = [row[0] for row in existing_columns]
-
-        if existing_names != columns:
-            raise ValueError(
-                f"Schema mismatch for public.{FEATURE_TABLE}. "
-                f"Existing columns: {existing_names}; "
-                f"new columns: {columns}. "
-                "No production data was replaced."
-            )
-
-        logger.info("Production schema validated")
-
-        logger.info("Replacing current feature data")
-
-        conn.execute(
-            sql.SQL("TRUNCATE TABLE public.{}").format(
-                sql.Identifier(FEATURE_TABLE)
-            )
+        logger.info(
+            "Production table recreated with %s columns",
+            len(columns),
         )
+
+        logger.info("Publishing %s feature rows", len(df))
 
         conn.execute(
             sql.SQL("INSERT INTO public.{} ({}) SELECT {} FROM {}").format(
