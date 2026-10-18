@@ -16,6 +16,10 @@ jobs:
       S3_ACCESS_KEY: test-key
       S3_SECRET_KEY: test-secret
       S3_RAW_BUCKET: raw
+      POSTGRES_HOST: localhost
+      POSTGRES_DB: pfas_import
+      POSTGRES_USER: pfas
+      POSTGRES_PASSWORD: test-password
     steps:
       - uses: actions/checkout@v4
 
