@@ -1,3 +1,5 @@
+.PHONY: test
+
 up:
 	@docker compose up -d
 
@@ -13,7 +15,7 @@ lint:
 lint-ci:
 	@uv run ruff check
 
-tests:
-	@uv run --env-file .env pytest
+test:
+	@uv run pytest
 
-ci: lint-ci tests
+ci: lint-ci test

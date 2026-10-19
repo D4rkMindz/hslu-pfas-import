@@ -11,9 +11,19 @@ jobs:
     env:
       # Dummy S3 settings so Settings() can load; the live storage tests
       # skip automatically when SeaweedFS isn't reachable (see test/conftest.py).
+      S3_ENDPOINT_URL: http://localhost:8333
       FSSPEC_S3_ENDPOINT_URL: http://localhost:8333
+      S3_ACCESS_KEY: test-key
       FSSPEC_S3_KEY: test-key
+      S3_SECRET_KEY: test-secret
       FSSPEC_S3_SECRET: test-secret
+      S3_REGION: us-east-1
+      S3_RAW_BUCKET: raw
+      S3_IMPORT_BUCKET: import
+      POSTGRES_HOST: localhost
+      POSTGRES_DB: pfas_import
+      POSTGRES_USER: pfas
+      POSTGRES_PASSWORD: test-password
     steps:
       - uses: actions/checkout@v4
 
