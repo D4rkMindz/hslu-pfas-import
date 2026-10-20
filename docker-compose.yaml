@@ -11,6 +11,7 @@ services:
     restart: "no" # run only on command (controlled by kestra)
     env_file:
       - .env
+      - .env.docker
     networks:
       - development
       - production
@@ -38,6 +39,23 @@ services:
       - production
 
 
+  pgadmin:
+    image: dpage/pgadmin4:9.17
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:?Set PGADMIN_DEFAULT_EMAIL in .env}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?Set PGADMIN_DEFAULT_PASSWORD in .env}
+      PGADMIN_REPLACE_SERVERS_ON_STARTUP: "True"
+    ports:
+      - "127.0.0.1:${PGADMIN_PORT:-8086}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+    networks:
+      - development
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   seaweedfs:
     image: chrislusf/seaweedfs:latest
     container_name: pi-seaweedfs
@@ -60,4 +78,5 @@ services:
 
 volumes:
   postgres_data:
+  pgadmin_data:
   seaweedfs_data:
