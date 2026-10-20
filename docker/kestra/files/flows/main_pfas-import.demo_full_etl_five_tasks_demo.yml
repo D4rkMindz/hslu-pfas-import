@@ -1,17 +1,6 @@
 id: full_etl_five_tasks_demo
 namespace: pfas-import.demo
 
-inputs:
-  - id: year
-    type: INT
-    defaults: 2024
-    min: 2009
-  - id: month
-    type: INT
-    defaults: 1
-    min: 1
-    max: 12
-
 triggers:
   - id: monthly_schedule
     type: io.kestra.plugin.core.trigger.Schedule
@@ -27,63 +16,61 @@ tasks:
       networkMode: "{{ envs.network }}"
       volumes:
         - "{{ envs.kestra_data_dir }}:/app/data"
-    commands: ["pfas_import extract -s https://hslu.ch -t hslu.parquet"]
+    commands: ["pfas_import extract"]
     env:
       S3_RAW_BUCKET: "{{ envs.s3_raw_bucket }}"
       S3_IMPORT_BUCKET: "{{ envs.s3_import_bucket }}"
       FSSPEC_S3_KEY: "{{ envs.s3_access_key }}"
       FSSPEC_S3_SECRET: "{{ envs.s3_secret_key }}"
       FSSPEC_S3_ENDPOINT_URL: "{{ envs.s3_endpoint_url }}"
+      # Used for sha256 hash comparison in DB
+      POSTGRES_HOST: "{{ envs.db_host }}"
+      POSTGRES_DB: "{{ envs.db }}"
+      POSTGRES_USER: "{{ envs.db_user }}"
+      POSTGRES_PASSWORD: "{{ envs.db_password }}"
 
 
-#  - id: transform
-#    type: io.kestra.plugin.scripts.shell.Commands
-#    containerImage: pfas-import:local
-#    taskRunner:
-#      type: io.kestra.plugin.scripts.runner.docker.Docker
-#      pullPolicy: NEVER
-#      networkMode: "{{ envs.network }}"
-#      entryPoint: [ ]
-#      volumes:
-#        - "{{ envs.kestra_data_dir }}:/app/data"
-#    commands:
-#      - >-
-#        transform
-#
-#  - id: load
-#    type: io.kestra.plugin.scripts.shell.Commands
-#    containerImage: pfas-import:local
-#    taskRunner:
-#      type: io.kestra.plugin.scripts.runner.docker.Docker
-#      pullPolicy: NEVER
-#      networkMode: "{{ envs.network }}"
-#      entryPoint: [ ]
-#      volumes:
-#        - "{{ envs.kestra_data_dir }}:/app/data"
-#    commands:
-#      - >-
-#        load
-#    env:
-#      POSTGRES_HOST: postgres # same as in PROJECT_ROOT/docker-compose.yaml
-#      POSTGRES_DB: "{{ envs.db }}"
-#      POSTGRES_USER: "{{ envs.db_user }}"
-#      POSTGRES_PASSWORD: "{{ envs.db_password }}"
-#
-#  - id: validate
-#    type: io.kestra.plugin.scripts.shell.Commands
-#    containerImage: pfas-import:local
-#    taskRunner:
-#      type: io.kestra.plugin.scripts.runner.docker.Docker
-#      pullPolicy: NEVER
-#      networkMode: "{{ envs.network }}"
-#      entryPoint: [ ]
-#      volumes:
-#        - "{{ envs.kestra_data_dir }}:/app/data"
-#    commands:
-#      - >-
-#        validate
-#    env:
-#      POSTGRES_HOST: postgres # same as in PROJECT_ROOT/docker-compose.yaml
-#      POSTGRES_DB: "{{ envs.db }}"
-#      POSTGRES_USER: "{{ envs.db_user }}"
-#      POSTGRES_PASSWORD: "{{ envs.db_password }}"
+  - id: transform
+    type: io.kestra.plugin.scripts.shell.Commands
+    containerImage: pfas-import
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      pullPolicy: NEVER
+      networkMode: "{{ envs.network }}"
+      volumes:
+        - "{{ envs.kestra_data_dir }}:/app/data"
+    commands: ["pfas_import transform"]
+    env:
+      S3_RAW_BUCKET: "{{ envs.s3_raw_bucket }}"
+      S3_IMPORT_BUCKET: "{{ envs.s3_import_bucket }}"
+      FSSPEC_S3_KEY: "{{ envs.s3_access_key }}"
+      FSSPEC_S3_SECRET: "{{ envs.s3_secret_key }}"
+      FSSPEC_S3_ENDPOINT_URL: "{{ envs.s3_endpoint_url }}"
+      # Used for sha256 hash comparison in DB
+      POSTGRES_HOST: "{{ envs.db_host }}"
+      POSTGRES_DB: "{{ envs.db }}"
+      POSTGRES_USER: "{{ envs.db_user }}"
+      POSTGRES_PASSWORD: "{{ envs.db_password }}"
+
+
+  - id: load
+    type: io.kestra.plugin.scripts.shell.Commands
+    containerImage: pfas-import
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      pullPolicy: NEVER
+      networkMode: "{{ envs.network }}"
+      volumes:
+        - "{{ envs.kestra_data_dir }}:/app/data"
+    commands: ["pfas_import load"]
+    env:
+      S3_RAW_BUCKET: "{{ envs.s3_raw_bucket }}"
+      S3_IMPORT_BUCKET: "{{ envs.s3_import_bucket }}"
+      FSSPEC_S3_KEY: "{{ envs.s3_access_key }}"
+      FSSPEC_S3_SECRET: "{{ envs.s3_secret_key }}"
+      FSSPEC_S3_ENDPOINT_URL: "{{ envs.s3_endpoint_url }}"
+      # Used for import
+      POSTGRES_HOST: "{{ envs.db_host }}"
+      POSTGRES_DB: "{{ envs.db }}"
+      POSTGRES_USER: "{{ envs.db_user }}"
+      POSTGRES_PASSWORD: "{{ envs.db_password }}"

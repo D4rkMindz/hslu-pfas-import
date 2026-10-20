@@ -2,27 +2,18 @@
 
 import argparse
 
-from s3fs import S3FileSystem
-
-from pfas_import import storage
-from pfas_import.config import settings as s
+from pfas_import.ingestion import download, load, process_dataset
 
 
-def extract(source: str, target_file: str) -> None:
-    print(f"Hello world!\nsource={source}\ntarget_file={target_file}")
-    fs = S3FileSystem()
-    raw = fs.exists(s.bucket_raw)
-    imprt = fs.exists(s.bucket_import)
-    file = fs.isfile(s.bucket_raw + '/' + target_file)
-    print(f"raw: {raw}\nimport: {imprt}\nfile: {file}")
+def extract(source, target_file) -> None:
+    download.main(source, target_file)
 
 
-def transform(raw_source_file: str, target_file: str, schema_name: str) -> None:
-    pass
+def transform(raw_source_file: str, target_file: str) -> None:
+    process_dataset.main(raw_source_file, target_file)
 
-
-def load(source_file: str, target_schema_name: str) -> None:
-    pass
+def load_data(source_file: str) -> None:
+    load.main(source_file)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -32,28 +23,30 @@ def build_parser() -> argparse.ArgumentParser:
     extract_parser = subcommands.add_parser(
         "extract", help="Download a file from `source` to `target-file`."
     )
-    extract_parser.add_argument("-s", "--source", type=str, required=True, help="Source URL, e.g. https://hslu.ch")
-    extract_parser.add_argument("-t", "--target-file", type=str, required=True,
-                                help="Target file in S3_RAW_BUCKET, e.g. export.parquet")
+    extract_parser.add_argument("-s", "--source", type=str, required=False,
+                                help="Source URL, default: settings.dataset_url = https://pdh.cnrs.fr/download/full.parquet",
+                                default=settings.dataset_url)
+    extract_parser.add_argument("-r", "--target-file", type=str, required=False,
+                                help="Target file in S3_RAW_BUCKET, default: last_download.parquet",
+                                default=RAW_SOURCE_KEY)
 
     transform_parser = subcommands.add_parser(
         "transform",
-        help="Clean up values in `raw-source-file` into `target-file` using `schema-name`.",
+        help="Clean up values in `raw-source-file` into `target-file`.",
     )
-    transform_parser.add_argument("-r", "--raw-source-file", type=str, required=True,
-                                  help="Source file in S3_RAW_BUCKET, e.g. export.parquet")
-    transform_parser.add_argument("-t", "--target-file", type=str, required=True,
-                                  help="Target file in S3_IMPORT_BUCKET, e.g. data.parquet")
-    transform_parser.add_argument("-n", "--schema-mame", type=str, required=True,
-                                  help="Target schema name for the transformation")
+    transform_parser.add_argument("-r", "--raw-source-file", type=str, required=False,
+                                  help="Source file in S3_RAW_BUCKET, default: last_download.parquet",
+                                  default=RAW_SOURCE_KEY)
+    transform_parser.add_argument("-t", "--target-file", type=str, required=False,
+                                  help="Target file in S3_IMPORT_BUCKET, default: last_import.parquet",
+                                  default=IMPORT_SOURCE_KEY)
 
     load_parser = subcommands.add_parser(
         "load", help="Load `source-file` into the `target-schema-name` database schema."
     )
-    load_parser.add_argument("-f", "--source-file", type=str, required=True,
-                             help="Source file in S3_IMPORT_BUCKET, e.g. data.parquet")
-    load_parser.add_argument("-n", "--schema-name", type=str, required=True,
-                             help="Target schema name which the transformation was built for (same as transform --schema-name)")
+    load_parser.add_argument("-t", "--source-file", type=str, required=False,
+                             help="Source file in S3_IMPORT_BUCKET, default: last_import.parquet",
+                             default=IMPORT_SOURCE_KEY)
 
     return parser
 
@@ -66,9 +59,9 @@ def main() -> None:
         case "extract":
             extract(args.source, args.target_file)
         case "transform":
-            transform(args.raw_source_file, args.target_file, args.schema_name)
+            transform(args.raw_source_file, args.target_file)
         case "load":
-            load(args.source_file, args.target_schema_name)
+            load_data(args.source_file)
 
 
 if __name__ == "__main__":

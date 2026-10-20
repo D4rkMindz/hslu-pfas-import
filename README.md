@@ -4,7 +4,7 @@ It is difficult to convey the extent of the problem on an individual level. Ther
 find an abstract correlation between the PFAS measurements and the surrounding Industries.
 
 # Setup
-First, copy ``/.env.example`` to ``/.env``
+First, copy ``/.env.example`` to ``/.env`` and ``/.env.docker.example`` to ``/.env.docker``
 Then adjust the values in it according to the documentation inside.
 
 ## Infrastructure
@@ -34,8 +34,10 @@ make stop
 
 
 ### Database
-This project uses PostgreSQL (with PostGIS). The database is setup automatically.
+This project uses PostgreSQL (with PostGIS). The database is set up automatically.
 
+The database can be easily managed using [pgAdmin](https://www.pgadmin.org/) in development, available on [localhost:8086](http://localhost:8086). 
+Connecting to the PostgreSQL server requires you setting the password (``POSTGRES_PASSWORD`` in ``/.env``) once (click "Save Password").
 
 ### Object Storage
 This project uses [SeaweedFS](https://s3fs.readthedocs.io/en/latest/api.html) for object storage.
@@ -68,6 +70,17 @@ available for flow tasks configuration in the `env:` parameter within `"{{ envs.
 the lowercase name of the `ENV_*` variable (without `ENV_`) from kestra docker compose (e.g. `ENV_S3_ENDPOINT_URL` 
 will be `"{{ envs.s3_endpoint_url }}"`)
 
+# Pipeline
+
+Run the **ETL** pipeline using
+
+```bash
+uv run --env-file .env pfas_import extract
+uv run --env-file .env pfas_import transform
+uv run --env-file .env pfas_import load
+```
+
+Alternatively, you can run the kestra flow.
 
 # Development
 

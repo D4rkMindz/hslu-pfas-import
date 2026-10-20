@@ -9,17 +9,17 @@ import logging
 import sys
 from typing import Any
 
-import psycopg
 import requests
 from kestra import Kestra
+from s3fs import S3FileSystem
 
 from pfas_import.config import settings, setup_logging
-from pfas_import.ingestion.constants import SOURCE_KEY, STATE_TABLE
-from pfas_import.storage import get_s3_fs
+from pfas_import.db import get_postgres_connection
+from pfas_import.ingestion.constants import RAW_SOURCE_KEY, STATE_TABLE
 
 logging.basicConfig(
-    level=settings.LOG_LEVEL,
-    format=settings.LOG_FORMAT,
+    level=settings.log_level,
+    format=settings.log_format,
     stream=sys.stdout,
     force=True,
 )
@@ -27,20 +27,6 @@ logger = logging.getLogger(__name__)
 
 CHUNK_SIZE = 8 * 1024 * 1024  # 8 MiB
 LOG_INTERVAL_BYTES = 100 * 1024 * 1024  # 100 MiB
-
-
-def get_postgres_connection() -> psycopg.Connection:
-    """Connect to PostgreSQL using the project settings."""
-    logger.info("Connecting to PostgreSQL.")
-
-    return psycopg.connect(
-        host=settings.postgres_host,
-        port=settings.postgres_port,
-        dbname=settings.postgres_db,
-        user=settings.postgres_user,
-        password=settings.postgres_password,
-        connect_timeout=10,
-    )
 
 
 def ensure_metadata_table() -> None:
@@ -88,15 +74,13 @@ def get_last_successful_hash() -> str | None:
     return previous_hash
 
 
-def download_dataset() -> dict[str, Any]:
+def download_dataset(source_url: str = settings.dataset_url, target_file: str = RAW_SOURCE_KEY) -> dict[str, Any]:
     """Download to a fixed S3 key and detect changes."""
-    s3_key = f"{settings.s3_raw_bucket}/{SOURCE_KEY}"
-
     logger.info("Starting PFAS-Hub dataset download.")
-    logger.info("Source URL: %s", settings.DATASET_URL)
-    logger.info("Destination: s3://%s", s3_key)
+    logger.info("Source URL: %s", settings.dataset_url)
+    logger.info("Destination: s3://%s/%s", settings.bucket_raw, target_file)
 
-    fs = get_s3_fs()
+    fs = S3FileSystem()
     logger.info("S3 filesystem initialized.")
 
     sha256 = hashlib.sha256()
@@ -108,23 +92,21 @@ def download_dataset() -> dict[str, Any]:
         logger.info("Connecting to the dataset source.")
 
         with requests.get(
-            settings.DATASET_URL,
-            stream=True,
-            timeout=(15, 300),
+                source_url,
+                stream=True,
+                timeout=(15, 300),
         ) as response:
             response.raise_for_status()
 
             logger.info(
-                "HTTP response received: status=%s, content_length=%s bytes.",
+                "HTTP response received: status=%s, content_length=%.2f MiB.",
                 response.status_code,
-                response.headers.get("Content-Length", "unknown"),
+                int(response.headers.get("Content-Length", "unknown")) / (1024 * 1024),
             )
             logger.info("Streaming dataset to S3.")
 
-            with fs.open(s3_key, "wb") as target:
-                for chunk in response.iter_content(
-                    chunk_size=CHUNK_SIZE
-                ):
+            with fs.open(f"{settings.bucket_raw}/{target_file}", "wb") as target:
+                for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
                     if not chunk:
                         continue
 
@@ -137,25 +119,19 @@ def download_dataset() -> dict[str, Any]:
                             "Download progress: %.1f MiB transferred.",
                             size_bytes / (1024 * 1024),
                         )
-                        next_log_bytes = (
-                            size_bytes // LOG_INTERVAL_BYTES + 1
-                        ) * LOG_INTERVAL_BYTES
+                        next_log_bytes = (size_bytes // LOG_INTERVAL_BYTES + 1) * LOG_INTERVAL_BYTES
 
         download_complete = True
         file_hash = sha256.hexdigest()
 
-        logger.info(
-            "Download complete: %.1f MiB; SHA-256: %s",
-            size_bytes / (1024 * 1024),
-            file_hash,
-        )
+        logger.info("Download complete: %.1f MiB; SHA-256: %s", size_bytes / (1024 * 1024), file_hash)
 
         previous_hash = get_last_successful_hash()
 
         if file_hash == previous_hash:
             logger.info("Dataset unchanged; ingestion will be skipped.")
-            fs.rm(s3_key)
-            logger.info("Removed unchanged download: %s", s3_key)
+            fs.rm(f"{settings.bucket_raw}/{target_file}")
+            logger.info("Removed unchanged download: s3://%s/%s", settings.bucket_raw, target_file)
 
             return {
                 "changed": False,
@@ -178,30 +154,23 @@ def download_dataset() -> dict[str, Any]:
     finally:
         if not download_complete:
             try:
-                if fs.exists(s3_key):
-                    fs.rm(s3_key)
-                    logger.info("Removed incomplete download: %s", s3_key)
+                if fs.exists(f"{settings.bucket_raw}/{target_file}"):
+                    fs.rm(f"{settings.bucket_raw}/{target_file}")
+                    logger.info("Removed incomplete download: s3://%s/%s", settings.bucket_raw, target_file)
             except Exception:
-                logger.exception(
-                    "Could not remove incomplete S3 download: %s",
-                    s3_key,
-                )
+                logger.exception("Could not remove incomplete S3 download: %s", target_file)
 
 
-def main() -> None:
+def main(source_url: str = settings.dataset_url, target_file: str = RAW_SOURCE_KEY) -> None:
+    setup_logging()
     logger.info("PFAS-Hub download task started.")
 
-    result = download_dataset()
+    result = download_dataset(source_url, target_file)
 
-    logger.info(
-        "Download task finished: changed=%s, size_bytes=%s.",
-        result["changed"],
-        result["size_bytes"],
-    )
+    logger.info("Download task finished: changed=%s, size_bytes=%s.", result["changed"], result["size_bytes"])
 
     Kestra.outputs(result)
 
 
 if __name__ == "__main__":
-    setup_logging()
     main()
