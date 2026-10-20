@@ -5,13 +5,13 @@ build-backend = "hatchling.build"
 [project]
 name = "pfas-import"
 version = "0.1.0"
-requires-python = ">=3.14"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "ipykernel>=7.3.0",
     "jupyterlab>=4.6.4",
     "kestra>=2.0.0",
     "pandas>=3.0.6",
-    "psycopg>=3.3.6",
+    "psycopg[binary]>=3.3.6",
     "pyarrow>=25.0.1",
     "pydantic>=2.14.1",
     "pydantic-settings>=2.16.0",

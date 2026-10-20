@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 LABEL authors="Björn Pfoster;Boris Lauper"
 
 # see https://github.com/astral-sh/uv-docker-example/blob/main/Dockerfile
@@ -11,7 +11,6 @@ WORKDIR /app
 
 # set timezone
 RUN ln -sf /usr/share/zoneinfo/Europe/Zurich /etc/localtime
-
 
 # Keeps Python from buffering stdout and stderr to avoid situations where
 # the application crashes without emitting any logs due to buffering.
