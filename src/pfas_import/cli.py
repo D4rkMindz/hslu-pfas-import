@@ -2,7 +2,10 @@
 
 import argparse
 
+from pfas_import import storage
+from pfas_import.config import settings as s
 from pfas_import.ingestion import download, load, process_dataset
+from pfas_import.ingestion.constants import IMPORT_SOURCE_KEY, RAW_SOURCE_KEY
 
 
 def extract(source, target_file) -> None:
@@ -25,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     extract_parser.add_argument("-s", "--source", type=str, required=False,
                                 help="Source URL, default: settings.dataset_url = https://pdh.cnrs.fr/download/full.parquet",
-                                default=settings.dataset_url)
+                                default=s.dataset_url)
     extract_parser.add_argument("-r", "--target-file", type=str, required=False,
                                 help="Target file in S3_RAW_BUCKET, default: last_download.parquet",
                                 default=RAW_SOURCE_KEY)
