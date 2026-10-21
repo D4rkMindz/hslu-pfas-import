@@ -302,7 +302,7 @@ def _compress_dataframe(df : pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def load_and_transform(df: pd.DataFrame) -> pd.DataFrame:
+def transform(df: pd.DataFrame) -> pd.DataFrame:
     """Extract TierA and TierB features from the raw dataset."""
     logger.info("Starting tier1 feature extraction...")
     feature_df: pd.DataFrame = _extract_tier1_features(df)

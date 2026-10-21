@@ -1,10 +1,16 @@
 .PHONY: test
-
+COMPOSE := docker compose --env-file .env --env-file .env.docker
 up:
-	@docker compose up -d
+	@$(COMPOSE) up -d
+
+build:
+	@$(COMPOSE) build
 
 down:
-	@docker compose down
+	@$(COMPOSE) down
+
+stop:
+	@$(COMPOSE) down -v --rmi all --remove-orphans
 
 lint:
 	@uv run ruff check --watch --fix
