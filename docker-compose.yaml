@@ -1,5 +1,21 @@
 # pi = PFAS Import
+include:
+  - docker/networks.yaml
+  - docker/kestra/docker-compose.yaml
+
 services:
+  pfas-import:
+    build: .
+    image: pfas-import
+    container_name: pfas-import
+    restart: "no" # run only on command (controlled by kestra)
+    env_file:
+      - .env
+      - .env.docker
+    networks:
+      - development
+      - production
+
   postgres:
     image: postgis/postgis:17-3.5
     platform: linux/amd64
@@ -17,10 +33,33 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
+    networks:
+      - development
+      - production
+
+
+  pgadmin:
+    image: dpage/pgadmin4:9.17
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:?Set PGADMIN_DEFAULT_EMAIL in .env}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?Set PGADMIN_DEFAULT_PASSWORD in .env}
+      PGADMIN_REPLACE_SERVERS_ON_STARTUP: "True"
+    ports:
+      - "127.0.0.1:${PGADMIN_PORT:-8086}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+    networks:
+      - development
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   seaweedfs:
     image: chrislusf/seaweedfs:latest
     container_name: pi-seaweedfs
+    restart: unless-stopped
     # Default command is `weed mini -dir=/data` (master + volume + filer + S3 in one process)
     environment:
       AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
@@ -32,7 +71,12 @@ services:
       - "23646:23646" # Admin UI
     volumes:
       - seaweedfs_data:/data
+    networks:
+      - development
+      - production
+
 
 volumes:
   postgres_data:
+  pgadmin_data:
   seaweedfs_data:

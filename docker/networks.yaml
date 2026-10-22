@@ -1,0 +1,7 @@
+networks:
+  default:
+    name: development
+  development:
+    name: development
+  production:
+    name: production

@@ -11,6 +11,12 @@ class TestEnsureBucketAgainstLiveSeaweedFs:
     """
 
     def test_raw_bucket_is_created(self, live_s3_fs):
+        assert live_s3_fs.exists(storage.raw_bucket())
+
+    def test_import_bucket_is_created(self, live_s3_fs):
+        assert live_s3_fs.exists(storage.import_bucket())
+
+    def test_bucket_is_created(self, live_s3_fs):
         bucket = f"test-{uuid.uuid4().hex[:8]}"
         assert not live_s3_fs.exists(bucket)
 
