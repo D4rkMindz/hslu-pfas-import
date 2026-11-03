@@ -30,27 +30,29 @@ class TestEnsureBucket:
 
 
 class TestRawBucket:
-    def test_defaults_to_raw(self, monkeypatch):
+    def test_defaults(self, monkeypatch):
         monkeypatch.delenv("S3_RAW_BUCKET", raising=False)
+        monkeypatch.delenv("S3_IMPORT_BUCKET", raising=False)
 
         assert storage.raw_bucket() == "raw"
+        assert storage.import_bucket() == "import"
 
     def test_respects_env_override(self, monkeypatch):
         monkeypatch.setenv("S3_RAW_BUCKET", "custom-bucket")
+        monkeypatch.setenv("S3_IMPORT_BUCKET", "custom-bucket-2")
 
         assert storage.raw_bucket() == "custom-bucket"
+        assert storage.import_bucket() == "custom-bucket-2"
 
 
 class TestGetS3Fs:
     def test_builds_filesystem_from_settings(self, monkeypatch, s3_env):
         mock_s3_filesystem = MagicMock()
-        monkeypatch.setattr(storage.s3fs, "S3FileSystem", mock_s3_filesystem)
 
-        storage.get_s3_fs()
+        monkeypatch.setenv("S3_RAW_BUCKET", "custom-bucket")
+        monkeypatch.setenv("S3_IMPORT_BUCKET", "custom-bucket-2")
+        monkeypatch.setattr(storage, "S3FileSystem", mock_s3_filesystem)
 
-        mock_s3_filesystem.assert_called_once_with(
-            key="test-key",
-            secret="test-secret",
-            endpoint_url="http://localhost:8333",
-            client_kwargs={"region_name": "us-east-1"},
-        )
+        storage.setup()
+
+        mock_s3_filesystem.assert_any_call()

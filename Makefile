@@ -1,7 +1,10 @@
+.PHONY: test
 COMPOSE := docker compose --env-file .env --env-file .env.docker
-
 up:
 	@$(COMPOSE) up -d
+
+build:
+	@$(COMPOSE) build
 
 down:
 	@$(COMPOSE) down

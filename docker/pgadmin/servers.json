@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "pi-postgres",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "pfas_import",
+      "Username": "pfas",
+      "SSLMode": "prefer"
+    }
+  }
+}
