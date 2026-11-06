@@ -9,10 +9,10 @@ triggers:
 tasks:
   - id: extract
     type: io.kestra.plugin.scripts.shell.Commands
-    containerImage: pfas-import
+    containerImage: "{{ envs.pfas_import_image ?? 'pfas-import' }}"
     taskRunner:
       type: io.kestra.plugin.scripts.runner.docker.Docker
-      pullPolicy: NEVER
+      pullPolicy: "{{ envs.pull_policy ?? 'NEVER' }}"
       networkMode: "{{ envs.network }}"
       volumes:
         - "{{ envs.kestra_data_dir }}:/app/data"
@@ -32,10 +32,10 @@ tasks:
 
   - id: transform
     type: io.kestra.plugin.scripts.shell.Commands
-    containerImage: pfas-import
+    containerImage: "{{ envs.pfas_import_image ?? 'pfas-import' }}"
     taskRunner:
       type: io.kestra.plugin.scripts.runner.docker.Docker
-      pullPolicy: NEVER
+      pullPolicy: "{{ envs.pull_policy ?? 'NEVER' }}"
       networkMode: "{{ envs.network }}"
       volumes:
         - "{{ envs.kestra_data_dir }}:/app/data"
@@ -55,10 +55,10 @@ tasks:
 
   - id: load
     type: io.kestra.plugin.scripts.shell.Commands
-    containerImage: pfas-import
+    containerImage: "{{ envs.pfas_import_image ?? 'pfas-import' }}"
     taskRunner:
       type: io.kestra.plugin.scripts.runner.docker.Docker
-      pullPolicy: NEVER
+      pullPolicy: "{{ envs.pull_policy ?? 'NEVER' }}"
       networkMode: "{{ envs.network }}"
       volumes:
         - "{{ envs.kestra_data_dir }}:/app/data"
