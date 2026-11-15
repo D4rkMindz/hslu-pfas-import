@@ -70,6 +70,50 @@ available for flow tasks configuration in the `env:` parameter within `"{{ envs.
 the lowercase name of the `ENV_*` variable (without `ENV_`) from kestra docker compose (e.g. `ENV_S3_ENDPOINT_URL` 
 will be `"{{ envs.s3_endpoint_url }}"`)
 
+## Cloud
+
+### BigQuery
+This project can publish the features to [BigQuery](https://cloud.google.com/bigquery) instead of the local PostgreSQL
+database. To set it up properly, you need to install the [gcloud CLI](https://cloud.google.com/sdk/docs/install). The
+Google project needs to have billing and APIs enabled, and must be able to create service accounts and provision roles
+so the terraform setup can be run properly.
+
+To setup the gcloud CLI for this project, please use the commands below.
+
+```shell
+gcloud auth application-default login
+gcloud auth application-default set-quota-project <your-project-id>
+```
+
+After setting up the basics, the service account key needs to be created by the following command. It is written to
+`/secrets` (ignored folder), which docker compose and the Kestra flow then mount into `/app/secrets` (configured using
+`GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/gcp-service-account.json` in `.env.docker`).
+
+```shell
+mkdir -p secrets
+gcloud iam service-accounts keys create secrets/gcp-service-account.json \
+  --iam-account="$(terraform -chdir=infra output -raw service_account_email)"
+```
+
+### Terraform
+
+[Terraform](https://developer.hashicorp.com/terraform/install) is used to automatically setup the cloud infrastructure
+for this project. To run it, the Google account has to be allowed to enable APIs, create service accounts and grant roles.
+
+Terraform automatically loads configuration from the .env file.
+`GCP_PROJECT_ID`, `BIGQUERY_LOCATION` and `BIGQUERY_DATASET` need to be set accordingly.
+
+The three commands setting up the cloud infrastructure are:
+
+```shell
+make tf-init
+make tf-plan
+make tf-apply
+```
+
+`make setup` starts the containers, creates the S3 buckets and, with `LOAD_TARGET=online`, also runs `tf-init` and
+`tf-apply`.
+
 # Pipeline
 
 Run the **ETL** pipeline using
@@ -79,6 +123,9 @@ uv run --env-file .env pfas_import extract
 uv run --env-file .env pfas_import transform
 uv run --env-file .env pfas_import load
 ```
+
+`load` publishes to `LOAD_TARGET` from `.env`: `local` (PostgreSQL, default) or `online` (BigQuery, see "Cloud").
+Override it per run with `pfas_import load --target online`.
 
 Alternatively, you can run the kestra flow.
 
