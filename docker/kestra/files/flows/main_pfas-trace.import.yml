@@ -1,5 +1,5 @@
-id: full_etl_five_tasks_demo
-namespace: pfas-import.demo
+id: import
+namespace: pfas-trace
 
 triggers:
   - id: monthly_schedule
