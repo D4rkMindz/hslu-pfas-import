@@ -10,12 +10,11 @@ from s3fs import S3FileSystem
 
 from pfas_import.config import settings, setup_logging
 from pfas_import.db import ensure_state_table, get_postgres_connection
-from pfas_import.ingestion.constants import RAW_SOURCE_KEY, STATE_TABLE
+from pfas_import.ingestion.constants import FEATURE_TABLE, RAW_SOURCE_KEY, STATE_TABLE
 from pfas_import.ingestion.process_dataset import get_source_sha256
 
 logger = logging.getLogger(__name__)
 
-FEATURE_TABLE: str = "pfas_features"
 STAGING_TABLE: str = "_pfas_features_staging"
 
 COPY_LOG_INTERVAL = 50_000
@@ -253,23 +252,34 @@ def read_source_dataframe(fs: Any, file) -> pd.DataFrame:
 
     return df
 
-def load(import_file: str = RAW_SOURCE_KEY) -> None:
-    logger.info("Starting PostgreSQL publication")
+def load(import_file: str = RAW_SOURCE_KEY, target: str | None = None) -> None:
+    """Publish `import_file` to `target` ("local" = PostgreSQL, "online" = BigQuery, default: LOAD_TARGET)."""
+    target = target or settings.load_target
+    fs = S3FileSystem()
+    source_path = f"{settings.bucket_import}/{import_file}"
+    feature_df = read_source_dataframe(fs, source_path)
 
-    feature_df = read_source_dataframe(S3FileSystem(), f"{settings.bucket_import}/{import_file}")
+    if target == "online":
+        logger.info("Starting BigQuery publication")
+        # Imported here, so the local path works without the BigQuery client being configured.
+        from pfas_import.ingestion import bigquery_load
+        bigquery_load.publish_feature_dataframe(feature_df)
+        return
+
+    logger.info("Starting PostgreSQL publication")
 
     with get_postgres_connection() as conn:
         publish_feature_dataframe(
             conn=conn,
             df=feature_df,
-            source_sha256=get_source_sha256(S3FileSystem(), f"{settings.bucket_import}/{import_file}"),
+            source_sha256=get_source_sha256(fs, source_path),
             source_key=import_file,
         )
 
 
-def main(import_file: str = RAW_SOURCE_KEY) -> None:
+def main(import_file: str = RAW_SOURCE_KEY, target: str | None = None) -> None:
     setup_logging()
-    load(import_file)
+    load(import_file, target)
 
 
 if __name__ == '__main__':

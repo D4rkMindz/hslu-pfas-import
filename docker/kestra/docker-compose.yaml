@@ -47,6 +47,14 @@ services:
       ENV_S3_ACCESS_KEY: ${S3_ACCESS_KEY:? Set S3_ACCESS_KEY in .env}
       ENV_S3_SECRET_KEY: ${S3_SECRET_KEY:? Set S3_SECRET_KEY in .env}
       ENV_NETWORK: development
+      ENV_LOAD_TARGET: ${LOAD_TARGET:-local}
+      ENV_GCP_PROJECT_ID: ${GCP_PROJECT_ID:-pfas-trace}
+      ENV_BIGQUERY_DATASET: ${BIGQUERY_DATASET:-pfas_import}
+      ENV_BIGQUERY_LOCATION: ${BIGQUERY_LOCATION:-europe-west6}
+      # LOAD_TARGET=online only. The task containers mount the secrets directory from the host,
+      # so this has to be a host path: run `make up` (or docker compose) from the project root.
+      ENV_SECRETS_DIR: ${PWD}/secrets
+      ENV_GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/app/secrets/gcp-service-account.json}
     volumes:
       - kestra_files:/app/storage
       - ./application.yaml:/etc/kestra/application.yaml:ro

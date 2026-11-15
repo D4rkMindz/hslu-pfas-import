@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     postgres_user: str = Field(alias="POSTGRES_USER")
     postgres_password: str = Field(alias="POSTGRES_PASSWORD")
 
+    # Where `pfas_import load` publishes the features: "local" (PostgreSQL) or "online" (BigQuery)
+    load_target: Literal["local", "online"] = Field(default="local", alias="LOAD_TARGET")
+
+    # BigQuery (LOAD_TARGET=online). Terraform (`make tf-*`) reads the same values from .env.
+    gcp_project_id: str = Field(default="pfas-trace", alias="GCP_PROJECT_ID")
+    bigquery_dataset: str = Field(default="pfas_import", alias="BIGQUERY_DATASET")
+    bigquery_location: str = Field(default="europe-west6", alias="BIGQUERY_LOCATION")
+
 # crash on error
 settings = Settings() # pyright: ignore[reportCallIssue]
 

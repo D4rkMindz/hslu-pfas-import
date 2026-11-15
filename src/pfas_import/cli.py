@@ -15,8 +15,8 @@ def extract(source, target_file) -> None:
 def transform(raw_source_file: str, target_file: str) -> None:
     process_dataset.main(raw_source_file, target_file)
 
-def load_data(source_file: str) -> None:
-    load.main(source_file)
+def load_data(source_file: str, target: str) -> None:
+    load.main(source_file, target)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -50,6 +50,10 @@ def build_parser() -> argparse.ArgumentParser:
     load_parser.add_argument("-t", "--source-file", type=str, required=False,
                              help="Source file in S3_IMPORT_BUCKET, default: last_import.parquet",
                              default=IMPORT_SOURCE_KEY)
+    load_parser.add_argument("--target", choices=["local", "online"], required=False,
+                             help="Publish to the local PostgreSQL database or the online BigQuery "
+                                  "warehouse, default: LOAD_TARGET (local)",
+                             default=s.load_target)
 
     return parser
 
@@ -64,7 +68,7 @@ def main() -> None:
         case "transform":
             transform(args.raw_source_file, args.target_file)
         case "load":
-            load_data(args.source_file)
+            load_data(args.source_file, args.target)
 
 
 if __name__ == "__main__":
