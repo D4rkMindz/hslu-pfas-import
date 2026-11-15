@@ -12,6 +12,9 @@ services:
     env_file:
       - .env
       - .env.docker
+    volumes:
+      # GCP service account key for LOAD_TARGET=online (GOOGLE_APPLICATION_CREDENTIALS in .env.docker)
+      - ./secrets:/app/secrets:ro
     networks:
       - development
       - production

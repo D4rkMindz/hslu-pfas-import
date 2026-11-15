@@ -62,6 +62,8 @@ tasks:
       networkMode: "{{ envs.network }}"
       volumes:
         - "{{ envs.kestra_data_dir }}:/app/data"
+        # GCP service account key for LOAD_TARGET=online
+        - "{{ envs.secrets_dir }}:/app/secrets:ro"
     commands: ["pfas_import load"]
     env:
       S3_RAW_BUCKET: "{{ envs.s3_raw_bucket }}"
@@ -74,3 +76,9 @@ tasks:
       POSTGRES_DB: "{{ envs.db }}"
       POSTGRES_USER: "{{ envs.db_user }}"
       POSTGRES_PASSWORD: "{{ envs.db_password }}"
+      # "local" (PostgreSQL) or "online" (BigQuery)
+      LOAD_TARGET: "{{ envs.load_target }}"
+      GCP_PROJECT_ID: "{{ envs.gcp_project_id }}"
+      BIGQUERY_DATASET: "{{ envs.bigquery_dataset }}"
+      BIGQUERY_LOCATION: "{{ envs.bigquery_location }}"
+      GOOGLE_APPLICATION_CREDENTIALS: "{{ envs.google_application_credentials }}"
