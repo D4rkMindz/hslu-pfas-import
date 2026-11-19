@@ -16,7 +16,7 @@ tasks:
       networkMode: "{{ envs.network }}"
       volumes:
         - "{{ envs.kestra_data_dir }}:/app/data"
-    commands: ["pfas_import extract"]
+    commands: ["pfas_import --output=kestra extract"]
     env:
       S3_RAW_BUCKET: "{{ envs.s3_raw_bucket }}"
       S3_IMPORT_BUCKET: "{{ envs.s3_import_bucket }}"
@@ -39,7 +39,7 @@ tasks:
       networkMode: "{{ envs.network }}"
       volumes:
         - "{{ envs.kestra_data_dir }}:/app/data"
-    commands: ["pfas_import transform"]
+    commands: ["pfas_import --output=kestra transform"]
     env:
       S3_RAW_BUCKET: "{{ envs.s3_raw_bucket }}"
       S3_IMPORT_BUCKET: "{{ envs.s3_import_bucket }}"
@@ -64,7 +64,7 @@ tasks:
         - "{{ envs.kestra_data_dir }}:/app/data"
         # GCP service account key for LOAD_TARGET=online
         - "{{ envs.secrets_dir }}:/app/secrets:ro"
-    commands: ["pfas_import load"]
+    commands: ["pfas_import --output=kestra load"]
     env:
       S3_RAW_BUCKET: "{{ envs.s3_raw_bucket }}"
       S3_IMPORT_BUCKET: "{{ envs.s3_import_bucket }}"
@@ -77,6 +77,39 @@ tasks:
       POSTGRES_USER: "{{ envs.db_user }}"
       POSTGRES_PASSWORD: "{{ envs.db_password }}"
       # "local" (PostgreSQL) or "online" (BigQuery)
+      LOAD_TARGET: "{{ envs.load_target }}"
+      GCP_PROJECT_ID: "{{ envs.gcp_project_id }}"
+      BIGQUERY_DATASET: "{{ envs.bigquery_dataset }}"
+      BIGQUERY_LOCATION: "{{ envs.bigquery_location }}"
+      GOOGLE_APPLICATION_CREDENTIALS: "{{ envs.google_application_credentials }}"
+
+  # Independent check of the published table: it equals the import file and holds plausible values.
+  # Runs on every execution, also when the source is unchanged. Fails the execution if an error
+  # check fails; the published data stays for investigation.
+  - id: verify
+    type: io.kestra.plugin.scripts.shell.Commands
+    containerImage: "{{ envs.pfas_import_image ?? 'pfas-import' }}"
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      pullPolicy: "{{ envs.pull_policy ?? 'NEVER' }}"
+      networkMode: "{{ envs.network }}"
+      volumes:
+        - "{{ envs.kestra_data_dir }}:/app/data"
+        # GCP service account key for LOAD_TARGET=online
+        - "{{ envs.secrets_dir }}:/app/secrets:ro"
+    commands: ["pfas_import --output=kestra verify"]
+    env:
+      S3_RAW_BUCKET: "{{ envs.s3_raw_bucket }}"
+      S3_IMPORT_BUCKET: "{{ envs.s3_import_bucket }}"
+      FSSPEC_S3_KEY: "{{ envs.s3_access_key }}"
+      FSSPEC_S3_SECRET: "{{ envs.s3_secret_key }}"
+      FSSPEC_S3_ENDPOINT_URL: "{{ envs.s3_endpoint_url }}"
+      # Reads the published table
+      POSTGRES_HOST: "{{ envs.db_host }}"
+      POSTGRES_DB: "{{ envs.db }}"
+      POSTGRES_USER: "{{ envs.db_user }}"
+      POSTGRES_PASSWORD: "{{ envs.db_password }}"
+      # Verifies the same target `load` published to: "local" (PostgreSQL) or "online" (BigQuery)
       LOAD_TARGET: "{{ envs.load_target }}"
       GCP_PROJECT_ID: "{{ envs.gcp_project_id }}"
       BIGQUERY_DATASET: "{{ envs.bigquery_dataset }}"
