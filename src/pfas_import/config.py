@@ -1,8 +1,11 @@
 """  Handles all static global variables (loaded vom .env and project-interns)
 config.py = systemic Defaults + persistend values
 .env = Enduser-overridable Settings + dynamische Runtime-Results
+
+Only `repository/factory.py` imports this module (enforced by test/test_architecture.py). Settings are read
+on first use, so importing a module never needs a complete .env.
 """
-import logging
+from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
@@ -25,7 +28,15 @@ class Settings(BaseSettings):
     # PFAS hub
     dataset_url: str = "https://pdh.cnrs.fr/download/full.parquet"
 
-    # S3 storage configs
+    # Object storage: "s3" (SeaweedFS locally, AWS S3 in prod) or "local" (a folder, LOCAL_DATA_DIR).
+    # "auto" uses S3 if s3fs gets an endpoint or a key (FSSPEC_S3_*), else the local folder. Set "s3"
+    # explicitly for AWS S3 with an IAM role, where neither is set.
+    object_store: Literal["auto", "s3", "local"] = Field(default="auto", alias="OBJECT_STORE")
+    local_data_dir: Path = Field(default=PROJECT_ROOT / "data", alias="LOCAL_DATA_DIR")
+    fsspec_s3_endpoint_url: str | None = Field(default=None, alias="FSSPEC_S3_ENDPOINT_URL")
+    fsspec_s3_key: str | None = Field(default=None, alias="FSSPEC_S3_KEY")
+
+    # S3 storage configs (the bucket names are folder names for OBJECT_STORE=local)
     bucket_raw: str = Field(alias="S3_RAW_BUCKET")
     bucket_import: str = Field(alias="S3_IMPORT_BUCKET")
 
@@ -44,11 +55,8 @@ class Settings(BaseSettings):
     bigquery_dataset: str = Field(default="pfas_import", alias="BIGQUERY_DATASET")
     bigquery_location: str = Field(default="europe-west6", alias="BIGQUERY_LOCATION")
 
-# crash on error
-settings = Settings() # pyright: ignore[reportCallIssue]
 
-
-def setup_logging():
-    """ Configures the logger once at the beginning """
-    logging.basicConfig(format=settings.log_format,
-                        level=settings.log_level)
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Crashes on missing required settings, at first use instead of at import."""
+    return Settings()  # pyright: ignore[reportCallIssue]

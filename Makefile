@@ -72,4 +72,4 @@ ifeq ($(LOAD_TARGET),online)
 	@make tf-init
 	@make tf-apply
 endif
-	@uv run --env-file .env python -c "from pfas_import import storage; storage.setup()"
+	@uv run --env-file .env python -c "from pfas_import.repository import factory; factory.ensure_buckets()"
