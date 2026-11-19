@@ -9,14 +9,13 @@ terraform {
   }
 
   # Shared state, so every machine sees what's already provisioned. Backends can't use variables, so
-  # the bucket (<project id>-tfstate) is passed to `terraform init -backend-config=bucket=...` by
-  # `make tf-init`, which also creates it if it doesn't exist yet -- see state.tf.
+  # `make tf-init` passes the bucket via -backend-config -- see state.tf.
   backend "gcs" {
     prefix = "terraform/state"
   }
 }
 
+# No provider region: every resource here is global or sets its location explicitly.
 provider "google" {
   project = var.project_id
-  region  = var.region
 }

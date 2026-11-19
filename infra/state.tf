@@ -1,14 +1,15 @@
 # Holds this configuration's own state (see the backend in versions.tf). Terraform can't create the
-# bucket it keeps its state in, so `make tf-init` creates it with gcloud first; the import below then
-# adopts it, so its settings are tracked like everything else.
+# bucket it keeps its state in, so `make tf-init` creates a bare one with gcloud and passes its name to
+# both the backend and var.state_bucket. The import below then adopts it, so all of its settings are
+# defined here only and applied by the first `make tf-apply`.
 import {
-  id = "${var.project_id}/${var.project_id}-tfstate"
+  id = "${var.project_id}/${var.state_bucket}"
   to = google_storage_bucket.tfstate
 }
 
 resource "google_storage_bucket" "tfstate" {
-  name                        = "${var.project_id}-tfstate"
-  location                    = var.region
+  name                        = var.state_bucket
+  location                    = var.location
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
 

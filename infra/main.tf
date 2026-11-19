@@ -20,7 +20,7 @@ resource "google_project_service" "services" {
 # (pfas_import.storage.bigquery), which replaces it on every `pfas_import load --target online`.
 resource "google_bigquery_dataset" "pfas_import" {
   dataset_id = var.dataset_id
-  location   = var.region
+  location   = var.location
 
   # Refuse to destroy the dataset while it still holds tables.
   delete_contents_on_destroy = false

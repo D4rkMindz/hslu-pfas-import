@@ -6,12 +6,17 @@ variable "project_id" {
   type        = string
 }
 
-variable "region" {
-  description = "Location of the dataset and the state bucket (BIGQUERY_LOCATION in .env)."
+variable "location" {
+  description = "Location of the dataset and the state bucket, a region or multi-region (BIGQUERY_LOCATION in .env)."
   type        = string
 }
 
 variable "dataset_id" {
   description = "BigQuery dataset holding the feature table (BIGQUERY_DATASET in .env)."
+  type        = string
+}
+
+variable "state_bucket" {
+  description = "Bucket holding the Terraform state, the same one the backend uses (set by `make tf-*`)."
   type        = string
 }

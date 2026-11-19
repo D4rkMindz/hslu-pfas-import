@@ -100,8 +100,8 @@ gcloud iam service-accounts keys create secrets/gcp-service-account.json \
 [Terraform](https://developer.hashicorp.com/terraform/install) is used to automatically setup the cloud infrastructure
 for this project. To run it, the Google account has to be allowed to enable APIs, create service accounts and grant roles.
 
-Terraform automatically loads configuration from the .env file.
-`GCP_PROJECT_ID`, `BIGQUERY_LOCATION` and `BIGQUERY_DATASET` need to be set accordingly.
+The `make tf-*` targets read `GCP_PROJECT_ID`, `BIGQUERY_LOCATION` and `BIGQUERY_DATASET` from the .env file, so they
+need to be set accordingly. `make tf-init` also creates the state bucket `<GCP_PROJECT_ID>-tfstate` if it doesn't exist.
 
 The three commands setting up the cloud infrastructure are:
 

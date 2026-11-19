@@ -36,22 +36,18 @@ ci: lint-ci test
 # Reads a value from .env, so Terraform targets the same project and dataset as the pipeline.
 env = $(shell sed -n 's/^$(1)=//p' .env 2>/dev/null)
 
-LOAD_TARGET := $(or $(call env,LOAD_TARGET),local)
 export TF_VAR_project_id := $(call env,GCP_PROJECT_ID)
-export TF_VAR_region := $(call env,BIGQUERY_LOCATION)
+export TF_VAR_location := $(call env,BIGQUERY_LOCATION)
 export TF_VAR_dataset_id := $(call env,BIGQUERY_DATASET)
-TF_STATE_BUCKET := $(TF_VAR_project_id)-tfstate
+export TF_VAR_state_bucket := $(TF_VAR_project_id)-tfstate
 TERRAFORM := terraform -chdir=infra
 
 .PHONY: tf-init tf-plan tf-apply
-# Terraform can't create the bucket it keeps its state in, so this does it once (infra/state.tf then
-# imports and tracks it). Idempotent.
+# Creates the bare state bucket if it doesn't exist yet (idempotent); infra/state.tf owns its settings.
 tf-init:
-	@gcloud storage buckets describe gs://$(TF_STATE_BUCKET) --project=$(TF_VAR_project_id) >/dev/null 2>&1 || ( \
-		gcloud storage buckets create gs://$(TF_STATE_BUCKET) --project=$(TF_VAR_project_id) \
-			--location=$(TF_VAR_region) --uniform-bucket-level-access --public-access-prevention && \
-		gcloud storage buckets update gs://$(TF_STATE_BUCKET) --versioning )
-	@$(TERRAFORM) init -backend-config="bucket=$(TF_STATE_BUCKET)"
+	@gcloud storage buckets describe gs://$(TF_VAR_state_bucket) --project=$(TF_VAR_project_id) >/dev/null 2>&1 || \
+		gcloud storage buckets create gs://$(TF_VAR_state_bucket) --project=$(TF_VAR_project_id) --location=$(TF_VAR_location)
+	@$(TERRAFORM) init -backend-config="bucket=$(TF_VAR_state_bucket)"
 
 tf-plan:
 	@$(TERRAFORM) plan
@@ -63,13 +59,15 @@ tf-apply:
 ########################################################################################################################
 # Setup pfas-import
 ########################################################################################################################
+LOAD_TARGET := $(or $(call env,LOAD_TARGET),local)
+
 .PHONY: setup
 setup:
 	@$(COMPOSE) up -d
 	@$(COMPOSE) up -d --wait postgres seaweedfs
 # BigQuery: provision the project first -- the dataset belongs to Terraform.
 ifeq ($(LOAD_TARGET),online)
-	@make tf-init
-	@make tf-apply
+	@$(MAKE) tf-init
+	@$(MAKE) tf-apply
 endif
 	@uv run --env-file .env python -c "from pfas_import.repository import factory; factory.ensure_buckets()"
