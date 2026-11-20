@@ -48,15 +48,11 @@ def build_parser() -> argparse.ArgumentParser:
                                   default=IMPORT_SOURCE_KEY)
 
     load_parser = subcommands.add_parser(
-        "load", help="Load `source-file` into the `target-schema-name` database schema."
+        "load", help="Publish `source-file` to PostgreSQL (TARGET=local) or BigQuery (TARGET=cloud)."
     )
     load_parser.add_argument("-t", "--source-file", type=str, required=False,
                              help="Source file in S3_IMPORT_BUCKET, default: last_import.parquet",
                              default=IMPORT_SOURCE_KEY)
-    load_parser.add_argument("--target", choices=["local", "online"], required=False,
-                             help="Publish to the local PostgreSQL database or the online BigQuery "
-                                  "warehouse, default: LOAD_TARGET (local)",
-                             default=factory.default_load_target())
 
     verify_parser = subcommands.add_parser(
         "verify",
@@ -66,10 +62,6 @@ def build_parser() -> argparse.ArgumentParser:
     verify_parser.add_argument("-t", "--source-file", type=str, required=False,
                                help="Source file in S3_IMPORT_BUCKET, default: last_import.parquet",
                                default=IMPORT_SOURCE_KEY)
-    verify_parser.add_argument("--target", choices=["local", "online"], required=False,
-                               help="Verify the local PostgreSQL database or the online BigQuery "
-                                    "warehouse, default: LOAD_TARGET (local)",
-                               default=factory.default_load_target())
     verify_parser.add_argument("--print-sql", action="store_true",
                                help="Only print the SQL of the rule checks (e.g. for pgAdmin), run nothing.")
 
@@ -103,12 +95,12 @@ def main() -> None:
                 )
             emit(args.command, result, args.output)
         case "load":
-            with factory.publication(args.target) as publication:
+            with factory.publication() as publication:
                 load.run(factory.dataset_files(), publication, args.source_file)
         case "verify":
             if args.print_sql:
-                sys.exit(verify.print_sql(args.target))
-            result = verify.main(args.source_file, args.target)
+                sys.exit(verify.print_sql())
+            result = verify.main(args.source_file)
             emit(args.command, result, args.output)
             sys.exit(result.exit_code)
 

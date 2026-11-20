@@ -47,8 +47,9 @@ class VerifyResult:
         return 1 if self.errors else 0
 
 
-def open_target(target: factory.LoadTarget) -> AbstractContextManager[PublishedTable]:
-    return factory.published_features(target)
+def open_target() -> AbstractContextManager[PublishedTable]:
+    """The published table of TARGET: PostgreSQL (local) or BigQuery (cloud)."""
+    return factory.published_features()
 
 
 def read_import_file(source_file: str) -> pd.DataFrame:
@@ -110,12 +111,12 @@ def report(results: list[CheckResult]) -> tuple[int, int]:
     return errors, warnings
 
 
-def print_sql(target: factory.LoadTarget | None = None, today: dt.date | None = None) -> int:
+def print_sql(today: dt.date | None = None) -> int:
     """Print the SQL of the rule checks (e.g. for pgAdmin) and run nothing. Returns the exit code."""
     # stdout must only hold the SQL here.
     logging.disable(logging.INFO)
 
-    with open_target(target or factory.default_load_target()) as published:
+    with open_target() as published:
         # The rule checks depend on the columns (tier-2 prefixes), so they are read from the table.
         columns = published.columns()
         if not columns:
@@ -125,14 +126,10 @@ def print_sql(target: factory.LoadTarget | None = None, today: dt.date | None = 
         return 0
 
 
-def main(
-    source_file: str = IMPORT_SOURCE_KEY,
-    target: factory.LoadTarget | None = None,
-    today: dt.date | None = None,
-) -> VerifyResult:
+def main(source_file: str = IMPORT_SOURCE_KEY, today: dt.date | None = None) -> VerifyResult:
     started_at = time.monotonic()
 
-    with open_target(target or factory.default_load_target()) as published:
+    with open_target() as published:
         expected = read_import_file(source_file)
         logger.info("Verifying %s against %s (%s rows)", published.name, source_file, len(expected))
         results = run(published, expected, today)

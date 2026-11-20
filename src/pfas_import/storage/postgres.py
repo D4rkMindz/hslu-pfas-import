@@ -1,5 +1,5 @@
-"""PostgreSQL feature store (LOAD_TARGET=local). Also holds the ingestion state
-(`repository/ingestion_state.py`), for every LOAD_TARGET.
+"""PostgreSQL store (TARGET=local), for the features and the ingestion state
+(`repository/ingestion_state.py`).
 
 The connection opens on first use, so a step that only needs the database after a long download
 does not hold an idle connection during it.

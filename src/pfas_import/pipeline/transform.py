@@ -38,7 +38,7 @@ def run(
 
     source_sha256 = files.raw_sha256(raw_source_file)
 
-    logger.info("Checking ingestion state in PostgreSQL")
+    logger.info("Checking ingestion state")
     decision = policy.decide(source_sha256, state.previous_sha256())
 
     if not decision.changed:

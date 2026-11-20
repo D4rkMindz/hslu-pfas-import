@@ -330,12 +330,12 @@ class TestMain:
             from contextlib import contextmanager
 
             @contextmanager
-            def fake_target(_):
+            def fake_target():
                 yield DuckDBTarget(table)
 
             monkeypatch.setattr(verify, "open_target", fake_target)
             monkeypatch.setattr(verify, "read_import_file", lambda _: valid_features() if file is None else file)
-            return verify.main(target="local").exit_code
+            return verify.main().exit_code
 
         return _run
 

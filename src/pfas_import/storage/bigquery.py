@@ -1,12 +1,13 @@
-"""BigQuery feature store (LOAD_TARGET=online): GCP_PROJECT_ID.BIGQUERY_DATASET.<table>.
-The dataset belongs to Terraform (infra/), the table to this module.
+"""BigQuery store (TARGET=cloud): GCP_PROJECT_ID.BIGQUERY_DATASET.<table>, for the features and the
+ingestion state (`repository/ingestion_state.py`). The dataset belongs to Terraform (infra/), the tables
+to the code.
 
 Authenticates via Application Default Credentials: `gcloud auth application-default login` locally, or
 GOOGLE_APPLICATION_CREDENTIALS pointing at a service account key file.
 """
 import logging
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import pandas as pd
@@ -45,8 +46,14 @@ class BigQueryStore(FeatureStore):
         except NotFound:
             return []
 
-    def query(self, sql: str) -> list[Sequence[Any]]:
-        return [tuple(row.values()) for row in self.client.query(sql).result()]
+    def query(self, sql: str, params: Mapping[str, str] | None = None) -> list[Sequence[Any]]:
+        """`params` are STRING query parameters, referenced as @name in `sql`."""
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter(name, "STRING", value) for name, value in (params or {}).items()
+            ]
+        )
+        return [tuple(row.values()) for row in self.client.query(sql, job_config=job_config).result()]
 
     def replace(self, table: str, df: pd.DataFrame) -> None:
         """Replace the table with `df` in one load job.

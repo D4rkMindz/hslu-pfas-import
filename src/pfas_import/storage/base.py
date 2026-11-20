@@ -1,5 +1,5 @@
 """The contract of a feature store: where `pipeline/load.py` publishes the features and
-`verification/verify.py` reads them back. `repository/factory.py` picks the backend (LOAD_TARGET)."""
+`verification/verify.py` reads them back. `repository/factory.py` picks the backend (TARGET)."""
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import Any

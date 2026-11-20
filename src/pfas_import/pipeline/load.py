@@ -1,6 +1,7 @@
-"""`pfas_import load`: publish the feature file to the feature store LOAD_TARGET selects.
+"""`pfas_import load`: publish the feature file and the ingestion state to the store TARGET selects.
 
-PostgreSQL gets the features and the ingestion state in one transaction. BigQuery only gets the features.
+PostgreSQL writes both in one transaction. BigQuery has none spanning two tables: features first, then the
+state, so a failure in between only means the next run publishes again (`repository/ingestion_state.py`).
 """
 import logging
 import time
@@ -16,10 +17,6 @@ def run(files: DatasetFiles, publication: Publication, import_file: str = IMPORT
     features, state = publication.features, publication.state
 
     logger.info("Starting publication to %s", features.name)
-
-    if state is None:
-        features.replace(feature_df)
-        return
 
     # Known bug, kept until its own fix step: this is the hash of the import file, while extract and
     # transform compare the raw file hash (docs/feature-parity.md, "Change detection never matches").

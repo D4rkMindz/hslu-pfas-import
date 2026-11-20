@@ -1,4 +1,4 @@
-"""The published feature table, in whichever feature store LOAD_TARGET selects. The table is the contract
+"""The published feature table, in the feature store TARGET selects. The table is the contract
 with the data science project `pfas_trace`."""
 from collections.abc import Sequence
 from typing import Any
