@@ -18,4 +18,9 @@ terraform {
 # No provider region: every resource here is global or sets its location explicitly.
 provider "google" {
   project = var.project_id
+
+  # With a user login (gcloud auth application-default login), some APIs need a project to bill the
+  # requests to; use this one instead of whatever quota project the login happens to have.
+  billing_project       = var.project_id
+  user_project_override = true
 }

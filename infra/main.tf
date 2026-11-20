@@ -16,20 +16,20 @@ resource "google_project_service" "services" {
   deletion_policy = "ABANDON"
 }
 
-# The warehouse dataset. The feature table in it stays with the pipeline code
-# (pfas_import.storage.bigquery), which replaces it on every `pfas_import load --target online`.
+# The warehouse dataset. Its tables (features and ingestion state) stay with the pipeline code
+# (pfas_import.storage.bigquery), which replaces them on every `pfas_import load` with TARGET=cloud.
 resource "google_bigquery_dataset" "pfas_import" {
   dataset_id = var.dataset_id
   location   = var.location
 
-  # Refuse to destroy the dataset while it still holds tables.
-  delete_contents_on_destroy = false
+  # The tables are reproducible from the source, so `make tf-destroy` may delete them (after confirmation).
+  delete_contents_on_destroy = true
 
   depends_on = [google_project_service.services]
 }
 
-# The identity the pipeline runs as where there is no gcloud login, e.g. the Docker container.
-# Its key is created with gcloud, not here: Terraform would keep the private key in its state.
+# The identity the pipeline runs as in the Kestra tasks. Its key and HMAC key are created with gcloud by
+# `make setup`, not here: Terraform would keep the secrets in its state.
 resource "google_service_account" "pipeline" {
   account_id   = "pfas-import-pipeline"
   display_name = "PFAS import pipeline"
@@ -39,7 +39,7 @@ resource "google_service_account" "pipeline" {
 
 resource "google_project_iam_member" "pipeline" {
   for_each = toset([
-    "roles/bigquery.dataEditor", # read and write the feature table
+    "roles/bigquery.dataEditor", # read and write the feature and ingestion state tables
     "roles/bigquery.jobUser",    # run load jobs and queries
   ])
   project = var.project_id
