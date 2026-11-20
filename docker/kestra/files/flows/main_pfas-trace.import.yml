@@ -1,0 +1,51 @@
+id: import
+namespace: pfas-trace
+description: >-
+  The pipeline: extract, transform, load and verify, each a run of the flow `step` (which holds the task settings
+  and reads TARGET and the rest from the KV store of this namespace).
+
+triggers:
+  - id: monthly_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "@monthly"
+
+tasks:
+  - id: extract
+    type: io.kestra.plugin.core.flow.Subflow
+    # The namespace this flow runs in (atc syncs it into another one)
+    namespace: "{{ flow.namespace }}"
+    flowId: step
+    inputs:
+      command: extract
+    wait: true
+    transmitFailed: true
+
+  - id: transform
+    type: io.kestra.plugin.core.flow.Subflow
+    namespace: "{{ flow.namespace }}"
+    flowId: step
+    inputs:
+      command: transform
+    wait: true
+    transmitFailed: true
+
+  - id: load
+    type: io.kestra.plugin.core.flow.Subflow
+    namespace: "{{ flow.namespace }}"
+    flowId: step
+    inputs:
+      command: load
+    wait: true
+    transmitFailed: true
+
+  # Independent check of the published table: it equals the import file and holds plausible values.
+  # Runs on every execution, also when the source is unchanged. Fails the execution if an error
+  # check fails; the published data stays for investigation.
+  - id: verify
+    type: io.kestra.plugin.core.flow.Subflow
+    namespace: "{{ flow.namespace }}"
+    flowId: step
+    inputs:
+      command: verify
+    wait: true
+    transmitFailed: true

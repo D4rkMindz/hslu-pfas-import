@@ -1,0 +1,56 @@
+id: step
+namespace: pfas-trace
+description: >-
+  One step of the flow `import`: `pfas_import <command>` in the pipeline's container. Holds the task settings
+  once for all steps (Kestra 2.0 has no pluginDefaults).
+
+  Configuration: the KV store of this namespace (`make setup` writes it from .env; atc has its own) and, for
+  passwords and keys only, the Kestra secrets PFAS_* (SECRET_PFAS_* in .env.kestra; Kestra masks their values in
+  the logs, so user names and access ids are in the KV store). TARGET picks local (SeaweedFS + PostgreSQL) or
+  cloud (GCS + BigQuery). The other target's values may be missing: `a ? b : c` only evaluates the chosen branch,
+  and the pipeline treats the empty values as "not set".
+
+inputs:
+  - id: command
+    type: SELECT
+    values: [extract, transform, load, verify]
+
+tasks:
+  - id: run
+    type: io.kestra.plugin.scripts.shell.Commands
+    containerImage: "{{ kv('IMAGE') }}"
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      pullPolicy: "{{ kv('PULL_POLICY') }}"
+      networkMode: "{{ kv('NETWORK') }}"
+    # The service account key (TARGET=cloud) as a file in the task's working directory, never on the host
+    inputFiles:
+      gcp-service-account.json: "{{ kv('TARGET') == 'cloud' ? secret('PFAS_GCP_SA_KEY') : '' }}"
+    beforeCommands:
+      - export GOOGLE_APPLICATION_CREDENTIALS="$WORKING_DIR/gcp-service-account.json"
+    commands: ["pfas_import --output=kestra {{ inputs.command }}"]
+    env:
+      TARGET: "{{ kv('TARGET') }}"
+      # TARGET=local
+      S3_RAW_BUCKET: "{{ kv('TARGET') == 'local' ? kv('S3_RAW_BUCKET') : '' }}"
+      S3_IMPORT_BUCKET: "{{ kv('TARGET') == 'local' ? kv('S3_IMPORT_BUCKET') : '' }}"
+      FSSPEC_S3_ENDPOINT_URL: "{{ kv('TARGET') == 'local' ? kv('S3_ENDPOINT_URL') : '' }}"
+      FSSPEC_S3_KEY: "{{ kv('TARGET') == 'local' ? kv('S3_ACCESS_KEY') : '' }}"
+      FSSPEC_S3_SECRET: "{{ kv('TARGET') == 'local' ? secret('PFAS_S3_SECRET_KEY') : '' }}"
+      POSTGRES_HOST: "{{ kv('TARGET') == 'local' ? kv('POSTGRES_HOST') : '' }}"
+      POSTGRES_PORT: "{{ kv('TARGET') == 'local' ? kv('POSTGRES_PORT') : '' }}"
+      POSTGRES_DB: "{{ kv('TARGET') == 'local' ? kv('POSTGRES_DB') : '' }}"
+      POSTGRES_USER: "{{ kv('TARGET') == 'local' ? kv('POSTGRES_USER') : '' }}"
+      POSTGRES_PASSWORD: "{{ kv('TARGET') == 'local' ? secret('PFAS_POSTGRES_PASSWORD') : '' }}"
+      # TARGET=cloud
+      GCP_PROJECT_ID: "{{ kv('TARGET') == 'cloud' ? kv('GCP_PROJECT_ID') : '' }}"
+      BIGQUERY_DATASET: "{{ kv('TARGET') == 'cloud' ? kv('BIGQUERY_DATASET') : '' }}"
+      BIGQUERY_LOCATION: "{{ kv('TARGET') == 'cloud' ? kv('BIGQUERY_LOCATION') : '' }}"
+      GCS_HMAC_ACCESS_ID: "{{ kv('TARGET') == 'cloud' ? kv('GCS_HMAC_ACCESS_ID') : '' }}"
+      GCS_HMAC_SECRET: "{{ kv('TARGET') == 'cloud' ? secret('PFAS_GCS_HMAC_SECRET') : '' }}"
+
+# The step's results (changed, sha256, rows, checks, ...), shown on the calling task in `import`
+outputs:
+  - id: result
+    type: JSON
+    value: "{{ outputs.run.vars ?? {} }}"

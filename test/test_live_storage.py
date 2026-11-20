@@ -1,6 +1,7 @@
 import uuid
 
-from pfas_import import storage
+from pfas_import.repository import factory
+from pfas_import.storage.object_store import ObjectStore
 
 
 class TestEnsureBucketAgainstLiveSeaweedFs:
@@ -11,17 +12,17 @@ class TestEnsureBucketAgainstLiveSeaweedFs:
     """
 
     def test_raw_bucket_is_created(self, live_s3_fs):
-        assert live_s3_fs.exists(storage.raw_bucket())
+        assert live_s3_fs.exists(factory.dataset_files().raw_bucket)
 
     def test_import_bucket_is_created(self, live_s3_fs):
-        assert live_s3_fs.exists(storage.import_bucket())
+        assert live_s3_fs.exists(factory.dataset_files().import_bucket)
 
     def test_bucket_is_created(self, live_s3_fs):
         bucket = f"test-{uuid.uuid4().hex[:8]}"
         assert not live_s3_fs.exists(bucket)
 
         try:
-            storage.ensure_bucket(live_s3_fs, bucket)
+            ObjectStore(live_s3_fs).ensure_bucket(bucket)
 
             assert live_s3_fs.exists(bucket)
         finally:
@@ -32,8 +33,9 @@ class TestEnsureBucketAgainstLiveSeaweedFs:
         bucket = f"test-{uuid.uuid4().hex[:8]}"
 
         try:
-            storage.ensure_bucket(live_s3_fs, bucket)
-            storage.ensure_bucket(live_s3_fs, bucket)  # must not raise
+            store = ObjectStore(live_s3_fs)
+            store.ensure_bucket(bucket)
+            store.ensure_bucket(bucket)  # must not raise
 
             assert live_s3_fs.exists(bucket)
         finally:

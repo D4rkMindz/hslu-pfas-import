@@ -12,6 +12,9 @@ services:
     env_file:
       - .env
       - .env.docker
+    volumes:
+      # GCP service account key for TARGET=cloud (GOOGLE_APPLICATION_CREDENTIALS in .env.docker)
+      - ./secrets:/app/secrets:ro
     networks:
       - development
       - production
@@ -41,6 +44,7 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4:9.17
+    container_name: pi-pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:?Set PGADMIN_DEFAULT_EMAIL in .env}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?Set PGADMIN_DEFAULT_PASSWORD in .env}

@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 from sklearn.neighbors import BallTree
 
+from pfas_import.domain.errors import EmptySourceGroupPrefix, SourceGroupCollision
+
 logger = logging.getLogger(__name__)
 
 EARTH_RADIUS_KM: float = 6371.0088
@@ -16,6 +18,35 @@ COUNT_BANDS_KM: tuple[tuple[float, float], ...] = (
     (5.0, 25.0),
     (25.0, 50.0),
 )
+# Mainland France including Corsica. Drops the overseas departments (Guadeloupe, Martinique,
+# French Guiana, Réunion, Mayotte) and a few mainland records with broken coordinates.
+MAINLAND_FRANCE_LAT: tuple[float, float] = (41.3, 51.1)
+MAINLAND_FRANCE_LON: tuple[float, float] = (-5.2, 9.6)
+# PostgreSQL's identifier limit minus the longest feature suffix (`_count_25_50km`).
+POSTGRES_MAX_IDENTIFIER_LENGTH: int = 63
+MAX_PREFIX_LENGTH: int = POSTGRES_MAX_IDENTIFIER_LENGTH - max(
+    len(f"_count_{lower:g}_{upper:g}km") for lower, upper in COUNT_BANDS_KM
+)
+NOT_ELSEWHERE_CLASSIFIED: str = "_n_e_c"
+MEASUREMENT_COLUMNS: list[str] = [
+    "date", "lat", "lon", "name", "city", "pfas_sum", "matrix", "unit", "type", "sector",
+]
+
+
+def _filter_france(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep the records of France. Runs before `transform`, like the France filter in `pfas_trace`."""
+    return df.query('country=="France"')
+
+
+def _filter_mainland_france(df: pd.DataFrame) -> pd.DataFrame:
+    df = _filter_france(df)
+    """Keep measurements and sources inside mainland France (incl. Corsica)."""
+    lat: pd.Series = pd.to_numeric(df["lat"], errors="coerce")
+    lon: pd.Series = pd.to_numeric(df["lon"], errors="coerce")
+    inside: pd.Series = lat.between(*MAINLAND_FRANCE_LAT) & lon.between(*MAINLAND_FRANCE_LON)
+
+    logger.info("Mainland France filter: keeping %s of %s records", int(inside.sum()), len(df))
+    return df.loc[inside]
 
 
 def _clean_invalid_records(df: pd.DataFrame) -> pd.DataFrame:
@@ -24,10 +55,21 @@ def _clean_invalid_records(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _normalize_feature_name(value: str) -> str:
-    """Convert a source-group name into a readable column-name prefix."""
+    """Convert a source-group name into a readable column-name prefix.
+
+    PostgreSQL silently cuts identifiers to 63 characters, so a prefix that is too long for its
+    longest column (`<prefix>_count_25_50km`) is shortened: first the "not elsewhere classified"
+    suffix `_n_e_c` is dropped, then it is cut to the maximum length.
+    """
     normalized: str = value.lower()
     normalized = re.sub(r"[^a-z0-9]+", "_", normalized)
-    return normalized.strip("_")
+    normalized = normalized.strip("_")
+
+    if len(normalized) > MAX_PREFIX_LENGTH:
+        normalized = normalized.removesuffix(NOT_ELSEWHERE_CLASSIFIED)
+        normalized = normalized[:MAX_PREFIX_LENGTH].rstrip("_")
+
+    return normalized
 
 
 def _add_source_features(
@@ -151,7 +193,7 @@ def _extract_tier1_features(df: pd.DataFrame) -> pd.DataFrame:
     tier1_feature_df: pd.DataFrame = (
         cleaned_df.loc[
             cleaned_df["category"] == "Measurement",
-            ["date", "lat", "lon", "name", "city", "pfas_sum"],
+            MEASUREMENT_COLUMNS,
         ]
         .copy()
         .reset_index(drop=True)
@@ -236,12 +278,12 @@ def _extract_tier2_features(
         prefix: str = _normalize_feature_name(str(source_group))
 
         if not prefix:
-            raise ValueError(
+            raise EmptySourceGroupPrefix(
                 f"Source group {source_group!r} produces an empty prefix."
             )
 
         if prefix in group_names and group_names[prefix] != source_group:
-            raise ValueError(
+            raise SourceGroupCollision(
                 "Source-group naming collision: "
                 f"{group_names[prefix]!r} and {source_group!r} "
                 f"both normalize to {prefix!r}."
@@ -304,11 +346,13 @@ def _compress_dataframe(df : pd.DataFrame) -> pd.DataFrame:
 
 def transform(df: pd.DataFrame) -> pd.DataFrame:
     """Extract TierA and TierB features from the raw dataset."""
+    mainland_df = _filter_mainland_france(df)
+
     logger.info("Starting tier1 feature extraction...")
-    feature_df: pd.DataFrame = _extract_tier1_features(df)
+    feature_df: pd.DataFrame = _extract_tier1_features(mainland_df)
 
     logger.info("Starting tier2 feature extraction...")
-    feature_df = _extract_tier2_features(df, feature_df)
+    feature_df = _extract_tier2_features(mainland_df, feature_df)
 
     logger.info("Converting to datetime...")
     feature_df['date'] = pd.to_datetime(feature_df["date"])
