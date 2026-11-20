@@ -13,7 +13,7 @@ from pfas_import.domain.errors import (
     InvalidIdentifier,
     SourceGroupCollision,
 )
-from pfas_import.domain.features import filter_france, transform
+from pfas_import.domain.features import _filter_france, transform
 from pfas_import.domain.sql_dialect import BIGQUERY, POSTGRES
 from pfas_import.repository.features import FeatureRepository
 from pfas_import.storage.base import FeatureStore
@@ -48,7 +48,7 @@ class TestFilterFrance:
             "pfas_sum": [1.0, 2.0, 3.0, 4.0, 5.0],
         })
 
-        result = filter_france(df)
+        result = _filter_france(df)
 
         assert result["name"].tolist() == ["a", "d"]
         assert list(result.columns) == ["country", "name", "pfas_sum"]
@@ -94,7 +94,7 @@ def raw_dataset(*presumptive_sectors: str) -> pd.DataFrame:
 
     def record(category, lat, lon, **extra):
         return {
-            "category": category, "lat": lat, "lon": lon, "date": "2024-05-01",
+            "category": category, "country": "France", "lat": lat, "lon": lon, "date": "2024-05-01",
             "name": f"{category} {lat}", "city": "x", "pfas_sum": 1.0, "matrix": "Groundwater",
             "unit": "ng/l", "type": "Sampling location", "sector": None, **extra,
         }

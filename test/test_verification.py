@@ -299,7 +299,7 @@ class TestTransformContract:
     def raw_dataset() -> pd.DataFrame:
         def record(category, lat, lon, **extra):
             return {
-                "category": category, "lat": lat, "lon": lon, "date": "2024-05-01",
+                "category": category, "country": "France", "lat": lat, "lon": lon, "date": "2024-05-01",
                 "name": f"{category} {lat}", "city": "x", "pfas_sum": 1.0, "matrix": "Groundwater",
                 "unit": "ng/l", "type": "Sampling location", "sector": None, **extra,
             }

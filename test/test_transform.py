@@ -33,7 +33,7 @@ class TestNormalizeFeatureName:
 def test_every_column_fits_postgres_identifiers():
     def record(category, lat, lon, sector=None, date=None):
         return {
-            "category": category, "lat": lat, "lon": lon, "date": date, "name": "n", "city": "c",
+            "category": category, "country": "France", "lat": lat, "lon": lon, "date": date, "name": "n", "city": "c",
             "pfas_sum": 1.0, "matrix": "Groundwater", "unit": "ng/l", "type": "t", "sector": sector,
         }
 
