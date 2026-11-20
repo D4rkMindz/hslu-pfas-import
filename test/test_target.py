@@ -13,8 +13,10 @@ CLOUD = {"TARGET": "cloud", "GCP_PROJECT_ID": "my-project", "GCS_HMAC_ACCESS_ID"
 
 @pytest.fixture(autouse=True)
 def fresh_object_store(monkeypatch):
-    for name in ("FSSPEC_S3_ENDPOINT_URL", "FSSPEC_S3_KEY", "OBJECT_STORE", "TARGET"):
-        monkeypatch.delenv(name, raising=False)
+    # Settings also reads the process environment (CI sets S3_*/POSTGRES_* job-wide), so clear every variable
+    # it knows: the tests here express "not set" by leaving a value out.
+    for name, field in Settings.model_fields.items():
+        monkeypatch.delenv(field.alias or name.upper(), raising=False)
     factory.object_store.cache_clear()
     yield
     factory.object_store.cache_clear()
