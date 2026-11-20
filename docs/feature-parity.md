@@ -136,12 +136,12 @@ Neither changes the output.
 These do not change the features, but they decide whether BigQuery gets them at all.
 
 1. **The BigQuery dataset does not exist yet.** On 2026-11-06 the project `pfas-trace` has no
-   datasets. Fix: `make tf-init && make tf-apply` (creates `pfas_import`, see `infra/`), then
-   `pfas_import load --target online`.
-2. **Kestra only publishes to BigQuery with `LOAD_TARGET=online`.** The flow
-   `docker/kestra/files/flows/main_pfas-trace.import.yml` (renamed from `full_etl_five_tasks_demo`) runs
-   `pfas_import load`, which publishes to `LOAD_TARGET` (default `local`). Fix: set
-   `LOAD_TARGET=online` in `.env` and create the service account key in `secrets/` (see README, "Cloud").
+   datasets. Fix: `TARGET=cloud` in `.env`, then `make setup` (runs Terraform, which creates `pfas_import`, see
+   `infra/`).
+2. **Kestra only publishes to BigQuery with `TARGET=cloud`.** The flow
+   `docker/kestra/files/flows/main_pfas-trace.import.yml` (renamed from `full_etl_five_tasks_demo`) reads `TARGET`
+   from the KV store of its namespace (default `local`). Fix: set `TARGET=cloud` in `.env` and run `make setup`
+   (see README, "Cloud").
 3. **Change detection never matches.** `pipeline/extract.py` and `pipeline/transform.py` compare the SHA-256 of
    the raw file `raw/last_download.parquet` with `pfas_ingestion_state.source_sha256`. `pipeline/load.py`
    stores the SHA-256 of the feature file `import/last_import.parquet` there instead. The hashes
