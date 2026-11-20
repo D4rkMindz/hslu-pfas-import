@@ -26,6 +26,10 @@ services:
     # Our base image runs without root, but the Docker Compose implementation needs root to access the Docker socket
     user: root
     command: server standalone --config /etc/kestra/application.yaml
+    # The pipeline's credentials as Kestra secrets (SECRET_PFAS_*, base64), written from .env by `make up`.
+    # The flow's other settings are in the KV store of its namespace (`make setup`).
+    env_file:
+      - ../../.env.kestra
     ports:
       - "127.0.0.1:${KESTRA_PORT:-8080}:8080"
     environment:
@@ -36,25 +40,6 @@ services:
       KESTRA_LOGIN_USER: ${KESTRA_UI_USER:?Set KESTRA_UI_USER in .env}
       KESTRA_LOGIN_PASSWORD: ${KESTRA_UI_PASSWORD:?Set KESTRA_UI_PASSWORD in .env}
       KESTRA_PORT: ${KESTRA_PORT:-8080}
-      ENV_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
-      ENV_DB_HOST: ${POSTGRES_HOST:?Set POSTGRES_HOST in .env}
-      ENV_DB_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
-      ENV_DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-      ENV_KESTRA_DATA_DIR: ${KESTRA_DATA_DIR:?Set KESTRA_DATA_DIR in .env}
-      ENV_S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:? Set S3_ENDPOINT_URL in .env}
-      ENV_S3_RAW_BUCKET: ${S3_RAW_BUCKET:? Set S3_RAW_BUCKET in .env}
-      ENV_S3_IMPORT_BUCKET: ${S3_IMPORT_BUCKET:? Set S3_IMPORT_BUCKET in .env}
-      ENV_S3_ACCESS_KEY: ${S3_ACCESS_KEY:? Set S3_ACCESS_KEY in .env}
-      ENV_S3_SECRET_KEY: ${S3_SECRET_KEY:? Set S3_SECRET_KEY in .env}
-      ENV_NETWORK: development
-      ENV_LOAD_TARGET: ${LOAD_TARGET:-local}
-      ENV_GCP_PROJECT_ID: ${GCP_PROJECT_ID:-pfas-trace}
-      ENV_BIGQUERY_DATASET: ${BIGQUERY_DATASET:-pfas_import}
-      ENV_BIGQUERY_LOCATION: ${BIGQUERY_LOCATION:-europe-west6}
-      # LOAD_TARGET=online only. The task containers mount the secrets directory from the host,
-      # so this has to be a host path: run `make up` (or docker compose) from the project root.
-      ENV_SECRETS_DIR: ${PWD}/secrets
-      ENV_GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/app/secrets/gcp-service-account.json}
     volumes:
       - kestra_files:/app/storage
       - ./application.yaml:/etc/kestra/application.yaml:ro
