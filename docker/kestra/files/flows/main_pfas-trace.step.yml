@@ -23,6 +23,10 @@ tasks:
       type: io.kestra.plugin.scripts.runner.docker.Docker
       pullPolicy: "{{ kv('PULL_POLICY') }}"
       networkMode: "{{ kv('NETWORK') }}"
+      # One run used 8.2 GB RAM + 2.3 GB swap; swap is memory + 1 MiB (equal values get reset to unlimited on daemon-reload)
+      memory:
+        memory: 6Gi
+        memorySwap: 6145Mi
     # The service account key (TARGET=cloud) as a file in the task's working directory, never on the host
     inputFiles:
       gcp-service-account.json: "{{ kv('TARGET') == 'cloud' ? secret('PFAS_GCP_SA_KEY') : '' }}"
