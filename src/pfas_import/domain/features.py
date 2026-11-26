@@ -67,19 +67,18 @@ class TransformOutput:
     facility_tokens: pd.DataFrame
 
 
-def _filter_france(df: pd.DataFrame) -> pd.DataFrame:
-    """Keep the records of France. Runs before `transform`, like the France filter in `pfas_trace`."""
-    return df.query('country=="France"')
-
-
 def _filter_mainland_france(df: pd.DataFrame) -> pd.DataFrame:
-    df = _filter_france(df)
     """Keep measurements and sources inside mainland France (incl. Corsica)."""
+    is_france: pd.Series = df["country"] == "France"
     lat: pd.Series = pd.to_numeric(df["lat"], errors="coerce")
     lon: pd.Series = pd.to_numeric(df["lon"], errors="coerce")
-    inside: pd.Series = lat.between(*MAINLAND_FRANCE_LAT) & lon.between(*MAINLAND_FRANCE_LON)
+    inside: pd.Series = (
+            is_france
+            & lat.between(*MAINLAND_FRANCE_LAT)
+            & lon.between(*MAINLAND_FRANCE_LON)
+    )
 
-    logger.info("Mainland France filter: keeping %s of %s records", int(inside.sum()), len(df))
+    logger.info("Mainland France filter: keeping %s of %s records", int(inside.sum()), int(is_france.sum()))
     return df.loc[inside]
 
 
@@ -106,33 +105,37 @@ def _normalize_feature_name(value: str) -> str:
     return normalized
 
 
-def _add_source_features(
-    feature_df: pd.DataFrame,
-    source_df: pd.DataFrame,
-    prefix: str,
-    valid_measurements: np.ndarray,
-    measurement_coords: np.ndarray,
-) -> None:
-    """Add nearest-source distance and counts in disjoint distance bands."""
+def _compute_source_features(
+        n_rows: int,
+        source_df: pd.DataFrame,
+        prefix: str,
+        valid_measurements: np.ndarray,
+        measurement_coords: np.ndarray,
+) -> dict[str, np.ndarray]:
+    """Compute nearest-source distance and disjoint band counts as compact numpy arrays."""
+    all_valid: bool = bool(valid_measurements.all())
 
     distance_column: str = f"{prefix}_distance_min"
+    count_dtype = np.int32 if all_valid else np.float32
+    count_fill = 0 if all_valid else np.nan
 
-    feature_df[distance_column] = np.nan
+    cols: dict[str, np.ndarray] = {
+        distance_column: np.full(n_rows, np.nan, dtype=np.float32),
+    }
 
     for lower_km, upper_km in COUNT_BANDS_KM:
-        feature_name: str = (
-            f"{prefix}_count_{lower_km:g}_{upper_km:g}km"
+        cols[f"{prefix}_count_{lower_km:g}_{upper_km:g}km"] = np.full(
+            n_rows, count_fill, dtype=count_dtype
         )
-        feature_df[feature_name] = np.nan
 
     source_coordinates: pd.DataFrame = source_df[
         ["lat", "lon"]
     ].apply(pd.to_numeric, errors="coerce")
 
     valid_sources: pd.Series = (
-        source_coordinates.notna().all(axis=1)
-        & source_coordinates["lat"].between(-90, 90)
-        & source_coordinates["lon"].between(-180, 180)
+            source_coordinates.notna().all(axis=1)
+            & source_coordinates["lat"].between(-90, 90)
+            & source_coordinates["lon"].between(-180, 180)
     )
 
     source_coords: np.ndarray = np.radians(
@@ -144,26 +147,25 @@ def _add_source_features(
     valid_indices: np.ndarray = np.flatnonzero(valid_measurements)
 
     if len(source_coords) == 0:
-        for lower_km, upper_km in COUNT_BANDS_KM:
-            feature_df.loc[
-                valid_indices,
-                f"{prefix}_count_{lower_km:g}_{upper_km:g}km",
-            ] = 0
-        return
+        if not all_valid:
+            for lower_km, upper_km in COUNT_BANDS_KM:
+                cols[f"{prefix}_count_{lower_km:g}_{upper_km:g}km"][valid_indices] = 0
+
+        return cols
 
     tree: BallTree = BallTree(source_coords, metric="haversine")
 
     for start in range(0, len(valid_indices), BATCH_SIZE):
         indices: np.ndarray = valid_indices[
-            start : start + BATCH_SIZE
+            start: start + BATCH_SIZE
         ]
         batch_coords: np.ndarray = measurement_coords[indices]
 
         distances_rad, _ = tree.query(batch_coords, k=1)
 
-        feature_df.loc[indices, distance_column] = (
-            distances_rad[:, 0] * EARTH_RADIUS_KM
-        )
+        cols[distance_column][indices] = (
+                distances_rad[:, 0] * EARTH_RADIUS_KM
+        ).astype(np.float32)
 
         # Count sources cumulatively within each upper boundary.
         cumulative_counts: dict[float, np.ndarray] = {}
@@ -175,13 +177,13 @@ def _add_source_features(
                     r=upper_km / EARTH_RADIUS_KM,
                     count_only=True,
                 ),
-                dtype=np.int64,
+                dtype=np.int32,
             )
             cumulative_counts[upper_km] = counts
 
         # Convert cumulative counts into disjoint distance bands.
         for band_index, (lower_km, upper_km) in enumerate(
-            COUNT_BANDS_KM
+                COUNT_BANDS_KM
         ):
             upper_counts: np.ndarray = cumulative_counts[upper_km]
 
@@ -191,14 +193,13 @@ def _add_source_features(
                 lower_counts: np.ndarray = cumulative_counts[lower_km]
                 band_counts = upper_counts - lower_counts
 
-            feature_df.loc[
-                indices,
-                f"{prefix}_count_{lower_km:g}_{upper_km:g}km",
-            ] = band_counts
+            cols[f"{prefix}_count_{lower_km:g}_{upper_km:g}km"][indices] = band_counts
+
+    return cols
 
 
 def _get_measurement_coordinates(
-    feature_df: pd.DataFrame,
+        feature_df: pd.DataFrame,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return valid measurement indices and coordinates in radians."""
 
@@ -207,9 +208,9 @@ def _get_measurement_coordinates(
     ].apply(pd.to_numeric, errors="coerce")
 
     valid_measurements: np.ndarray = (
-        coordinates.notna().all(axis=1)
-        & coordinates["lat"].between(-90, 90)
-        & coordinates["lon"].between(-180, 180)
+            coordinates.notna().all(axis=1)
+            & coordinates["lat"].between(-90, 90)
+            & coordinates["lon"].between(-180, 180)
     ).to_numpy()
 
     measurement_coords: np.ndarray = np.radians(
@@ -221,14 +222,18 @@ def _get_measurement_coordinates(
 
 def _extract_tier1_features(df: pd.DataFrame) -> pd.DataFrame:
     """Extract TierA: proximity to PFAS source categories."""
-
-    cleaned_df: pd.DataFrame = _clean_invalid_records(df)
+    valid_measurement_mask: pd.Series = (
+            (df["category"] == "Measurement")
+            & df[["lat", "lon", "date"]].notna().all(axis=1)
+    )
+    # cleaned_df: pd.DataFrame = _clean_invalid_records(df)
 
     tier1_feature_df: pd.DataFrame = (
-        cleaned_df.loc[
-            cleaned_df["category"] == "Measurement",
-            MEASUREMENT_COLUMNS,
-        ]
+        # cleaned_df.loc[
+        #     cleaned_df["category"] == "Measurement",
+        #     MEASUREMENT_COLUMNS,
+        # ]
+        df.loc[valid_measurement_mask, MEASUREMENT_COLUMNS]
         .copy()
         .reset_index(drop=True)
     )
@@ -236,15 +241,15 @@ def _extract_tier1_features(df: pd.DataFrame) -> pd.DataFrame:
     # Source records must not be filtered by measurement-date requirements.
     producers_df: pd.DataFrame = df.loc[
         df["category"] == PRODUCER_CATEGORY
-    ]
+        ]
 
     users_df: pd.DataFrame = df.loc[
         df["category"] == USER_CATEGORY
-    ]
+        ]
 
     presumptives_df: pd.DataFrame = df.loc[
         df["category"] == PRESUMPTIVE_CATEGORY
-    ]
+        ]
 
     valid_measurements, measurement_coords = (
         _get_measurement_coordinates(tier1_feature_df)
@@ -256,23 +261,26 @@ def _extract_tier1_features(df: pd.DataFrame) -> pd.DataFrame:
         "presumptive": presumptives_df,
     }
 
+    new_cols: dict[str, np.ndarray] = {}
     for prefix, source_df in source_categories.items():
-        _add_source_features(
-            feature_df=tier1_feature_df,
-            source_df=source_df,
-            prefix=prefix,
-            valid_measurements=valid_measurements,
-            measurement_coords=measurement_coords,
+        new_cols.update(
+            _compute_source_features(
+                n_rows=len(tier1_feature_df),
+                source_df=source_df,
+                prefix=prefix,
+                valid_measurements=valid_measurements,
+                measurement_coords=measurement_coords,
+            )
         )
 
-    return tier1_feature_df
+    return pd.concat([tier1_feature_df, pd.DataFrame(new_cols)], axis=1)
 
 
 def _presumptive_with_groups(df: pd.DataFrame) -> pd.DataFrame:
     """Presumptive sources with their tier-2 source group in `_source_group`; rows without one are dropped."""
     presumptive_df: pd.DataFrame = df.loc[
         df["category"] == PRESUMPTIVE_CATEGORY
-    ].copy()
+        ].copy()
 
     # Use sector when available; otherwise fall back to type.
     sectors: pd.Series = (
@@ -301,7 +309,7 @@ def _tier2_prefixes(presumptive_df: pd.DataFrame) -> dict[str, str]:
     group_names: dict[str, str] = {}
 
     for source_group in sorted(
-        presumptive_df["_source_group"].unique().tolist()
+            presumptive_df["_source_group"].unique().tolist()
     ):
         prefix: str = _normalize_feature_name(str(source_group))
 
@@ -323,8 +331,8 @@ def _tier2_prefixes(presumptive_df: pd.DataFrame) -> dict[str, str]:
 
 
 def _extract_tier2_features(
-    df: pd.DataFrame,
-    feature_df: pd.DataFrame,
+        df: pd.DataFrame,
+        feature_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """Extract TierB: proximity to dynamic presumptive source groups."""
 
@@ -336,22 +344,24 @@ def _extract_tier2_features(
 
     group_names = _tier2_prefixes(presumptive_df)
 
+    new_cols: dict[str, np.ndarray] = {}
     for prefix, source_group in group_names.items():
-        source_df: pd.DataFrame = presumptive_df.loc[
-            presumptive_df["_source_group"] == source_group
-        ]
+        source_df: pd.DataFrame = presumptive_df.loc[presumptive_df["_source_group"] == source_group]
 
-        _add_source_features(
-            feature_df=feature_df,
-            source_df=source_df,
-            prefix=prefix,
-            valid_measurements=valid_measurements,
-            measurement_coords=measurement_coords,
+        new_cols.update(
+            _compute_source_features(
+                n_rows=len(feature_df),
+                source_df=source_df,
+                prefix=prefix,
+                valid_measurements=valid_measurements,
+                measurement_coords=measurement_coords,
+            )
         )
 
-    return feature_df
+    return pd.concat([feature_df, pd.DataFrame(new_cols, index=feature_df.index)], axis=1)
 
-def _compress_dataframe(df : pd.DataFrame) -> pd.DataFrame:
+
+def _compress_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """Reduces size of dataframe by downcasting numerical columns.
 
     Args:
@@ -360,6 +370,7 @@ def _compress_dataframe(df : pd.DataFrame) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Compressed DataFrame.
     """
+
     def _human_readable_size(num_bytes: int) -> str:
         for unit in ['B', 'KB', 'MB', 'GB']:
             if num_bytes < 1024:
@@ -368,7 +379,7 @@ def _compress_dataframe(df : pd.DataFrame) -> pd.DataFrame:
         return f"{num_bytes:.2f} TB"
 
     in_bytes = df.memory_usage(index=True, deep=True).sum()
-    logger.info("unoptimized dataframe size: %s",_human_readable_size(int(in_bytes)))
+    logger.info("unoptimized dataframe size: %s", _human_readable_size(int(in_bytes)))
 
     downcast_types: list[Literal["float", "integer"]] = ["float", "integer"]
 
@@ -384,7 +395,7 @@ def _compress_dataframe(df : pd.DataFrame) -> pd.DataFrame:
         reduction_pct = (1 - (out_bytes / in_bytes)) * 100
 
     logger.info("optimized dataframe size: %s (-%.2f%%)",
-                _human_readable_size(int(out_bytes)),reduction_pct)
+                _human_readable_size(int(out_bytes)), reduction_pct)
 
     return df
 
@@ -409,8 +420,8 @@ def _facilities(df: pd.DataFrame) -> pd.DataFrame:
     facilities["lat"] = pd.to_numeric(facilities["lat"], errors="coerce")
     facilities["lon"] = pd.to_numeric(facilities["lon"], errors="coerce")
     valid = (
-        facilities["lat"].between(-90, 90)
-        & facilities["lon"].between(-180, 180)
+            facilities["lat"].between(-90, 90)
+            & facilities["lon"].between(-180, 180)
     )
     facilities = facilities.loc[valid, ["lat", "lon", "source_group", "category", "type"]]
     facilities["type"] = facilities["type"].astype("string").str.strip()
@@ -506,6 +517,7 @@ def transform_all(df: pd.DataFrame) -> TransformOutput:
 
     logger.info("Starting facility token extraction...")
     tokens_df = _facility_tokens(mainland_df, feature_df)
+    del mainland_df # reduce RAM usage
     logger.info(
         "Facility tokens: %s rows for %s of %s locations",
         len(tokens_df), tokens_df[LOCATION_ID_COLUMN].nunique(), feature_df[LOCATION_ID_COLUMN].nunique(),

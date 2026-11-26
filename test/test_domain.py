@@ -13,7 +13,7 @@ from pfas_import.domain.errors import (
     InvalidIdentifier,
     SourceGroupCollision,
 )
-from pfas_import.domain.features import _filter_france, transform
+from pfas_import.domain.features import transform
 from pfas_import.domain.sql_dialect import BIGQUERY, POSTGRES
 from pfas_import.repository.features import FeatureRepository
 from pfas_import.storage.base import FeatureStore
@@ -38,20 +38,6 @@ class TestChangePolicy:
 
         with pytest.raises(dataclasses.FrozenInstanceError):
             decision.changed = False  # type: ignore[misc]
-
-
-class TestFilterFrance:
-    def test_keeps_only_france(self):
-        df = pd.DataFrame({
-            "country": ["France", "Germany", None, "France", "france"],
-            "name": ["a", "b", "c", "d", "e"],
-            "pfas_sum": [1.0, 2.0, 3.0, 4.0, 5.0],
-        })
-
-        result = _filter_france(df)
-
-        assert result["name"].tolist() == ["a", "d"]
-        assert list(result.columns) == ["country", "name", "pfas_sum"]
 
 
 class TestErrors:
