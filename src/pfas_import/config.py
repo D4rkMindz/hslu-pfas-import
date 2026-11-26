@@ -76,7 +76,7 @@ class Settings(BaseSettings):
         return value
 
     @model_validator(mode="after")
-    def required_for_target(self) -> "Settings":
+    def required_for_target(self) -> Settings:
         required = {
             "local": {
                 "S3_RAW_BUCKET": self.bucket_raw,

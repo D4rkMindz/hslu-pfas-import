@@ -96,7 +96,7 @@ class BigQueryIngestionState:
     is safe because the publication replaces the whole table.
     """
 
-    def __init__(self, store: "BigQueryStore", table: str = STATE_TABLE):
+    def __init__(self, store: BigQueryStore, table: str = STATE_TABLE):
         self.store = store
         self.table = table
 
