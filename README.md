@@ -164,8 +164,9 @@ With `TARGET=local`, the Parquet files go to S3 or to a local folder, set by `OB
 
 ## Verify the result
 
-`pfas_import verify` checks the published feature table: it must hold exactly the content of the import file
-(`import/last_import.parquet`), and its values must make sense. It is independent of the other steps: it reads the
+`pfas_import verify` checks the two published tables, `pfas_features` and `pfas_facility_tokens`: each must hold
+exactly the content of its import file (`import/last_import.parquet`, `import/last_facility_tokens.parquet`), and
+their values must make sense. `docs/feature-parity.md` describes both tables. It is independent of the other steps: it reads the
 import file and the published table itself and shares no logic with `transform` or `load`, so it can run at any
 time, and a bug in the transform cannot hide itself.
 
@@ -201,17 +202,18 @@ date. They stay in the table, `pfas_sum = 0` (no PFAS detected) included.
 | Check                                                    | Severity | Fails when                                                                                       |
 |----------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------|
 | published table exists                                   | error    | `pfas_features` is missing in the target                                                         |
-| schema: base and tier-1 feature columns are present      | error    | one of `date, lat, lon, name, city, pfas_sum, matrix, unit, type, sector` or a `producer_*`, `user_*`, `presumptive_*` column is missing (contract with the data science project) |
+| schema: base and tier-1 feature columns are present      | error    | one of `date, year, lat, lon, name, city, pfas_sum, matrix, unit, type, sector, location_id` or a `producer_*`, `user_*`, `presumptive_*` column is missing (contract with the data science project) |
 | schema: every tier-2 prefix has a distance and three band columns | error | a presumptive sector lacks `_distance_min` or one of `_count_0_5km`, `_count_5_25km`, `_count_25_50km` |
 | reconciliation: row count equals the import file         | error    | rows were lost or added                                                                          |
 | reconciliation: column names equal the import file       | error    | a column is missing or renamed (e.g. PostgreSQL cuts names longer than 63 characters)            |
 | reconciliation: non-NULL count per column equals the import file | error | values were lost to NULL                                                                  |
 | reconciliation: sum per numeric column equals the import file | error | a value changed (relative tolerance 1e-9)                                                   |
 | reconciliation: date range equals the import file        | error    | min or max `date` differs                                                                        |
-| no NULL in date, lat, lon, name, pfas_sum, matrix, unit  | error    | a required value is missing (`city` and `sector` may be NULL)                                    |
+| no NULL in date, year, lat, lon, name, pfas_sum, matrix, unit, location_id | error | a required value is missing (`city` and `sector` may be NULL)                     |
 | coordinates in mainland France                           | error    | a row is outside lat 41.3..51.1, lon -5.2..9.6 (mainland France with Corsica)                    |
 | pfas_sum is not negative                                 | error    | `pfas_sum < 0` (0 is valid: nothing detected)                                                    |
 | date is not in the future                                | error    | `date` after today                                                                               |
+| year equals the year of date                             | error    | `year` differs from the year of `date`                                                           |
 | `<prefix>`: distance within 0..20,038 km                 | error    | a nearest-source distance is negative or longer than half the Earth's circumference              |
 | `<prefix>`: band counts are whole numbers >= 0           | error    | a source count is NULL, negative or fractional                                                   |
 | `<prefix>`: nearest distance agrees with the band counts | error    | e.g. the nearest source is 2 km away but no source is counted within 5 km (1 m tolerance)        |
@@ -222,10 +224,24 @@ date. They stay in the table, `pfas_sum = 0` (no PFAS detected) included.
 The three `<prefix>` checks run for every source category: `producer`, `user`, `presumptive` and each presumptive
 sector (tier 2).
 
+The facility token table gets its own block; every check name starts with `facility tokens:`:
+
+| Check                                                    | Severity | Fails when                                                                                       |
+|----------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------|
+| published table exists, schema                           | error    | `pfas_facility_tokens` or one of its 8 columns is missing                                        |
+| reconciliation: ... (as above)                           | error    | the table differs from `import/last_facility_tokens.parquet`                                     |
+| no NULL in location_id, rank, ...                        | error    | a token value is missing                                                                         |
+| rank is a whole number in 1..32                          | error    | `rank` out of range or fractional                                                                |
+| distance within 0..100 km                                | error    | a facility is further than the 100 km horizon (1 m tolerance)                                    |
+| bearing_sin / bearing_cos within -1..1, sin² + cos² = 1  | error    | the bearing is not a unit vector                                                                 |
+| (location_id, rank) is unique                            | error    | a location has two tokens with the same rank                                                     |
+| ranks are consecutive from 1 and sorted by distance      | error    | a rank is skipped, or a higher rank is closer than the rank before it                            |
+| every location_id exists in the feature table            | error    | a token points to a location that `pfas_features` does not have                                 |
+
 ### Run the checks in pgAdmin
 
-The rule checks (all except "published table exists", schema and reconciliation) are one SQL query. Print it for
-the current columns and paste it into the pgAdmin Query Tool (database `pfas_import`):
+The rule checks (all except "published table exists", schema and reconciliation) are one SQL query per table.
+Print both for the current columns and paste them into the pgAdmin Query Tool (database `pfas_import`):
 
 ```bash
 uv run --env-file .env pfas_import verify --print-sql
