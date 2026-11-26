@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 LABEL authors="Björn Pfoster;Boris Lauper"
 
 # see https://github.com/astral-sh/uv-docker-example/blob/main/Dockerfile

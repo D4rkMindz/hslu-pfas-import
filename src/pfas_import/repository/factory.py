@@ -126,7 +126,7 @@ def _postgres() -> PostgresStore:
 
 
 @contextmanager
-def _bigquery() -> Iterator["BigQueryStore"]:
+def _bigquery() -> Iterator[BigQueryStore]:
     # Imported here, so the local path works without the BigQuery client being configured.
     from google.cloud import bigquery
 
