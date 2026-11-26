@@ -1,22 +1,30 @@
-"""`pfas_import load`: publish the feature file and the ingestion state to the store TARGET selects.
+"""`pfas_import load`: publish the feature file, the facility token file and the ingestion state to the
+store TARGET selects.
 
-PostgreSQL writes both in one transaction. BigQuery has none spanning two tables: features first, then the
-state, so a failure in between only means the next run publishes again (`repository/ingestion_state.py`).
+PostgreSQL writes all three in one transaction. BigQuery has none spanning tables: features first, then the
+facility tokens, then the state, so a failure in between only means the next run publishes again
+(`repository/ingestion_state.py`).
 """
 import logging
 import time
 
 from pfas_import.repository.factory import Publication
-from pfas_import.repository.files import IMPORT_SOURCE_KEY, DatasetFiles
+from pfas_import.repository.files import FACILITY_TOKENS_KEY, IMPORT_SOURCE_KEY, DatasetFiles
 
 logger = logging.getLogger(__name__)
 
 
-def run(files: DatasetFiles, publication: Publication, import_file: str = IMPORT_SOURCE_KEY) -> None:
+def run(
+    files: DatasetFiles,
+    publication: Publication,
+    import_file: str = IMPORT_SOURCE_KEY,
+    tokens_file: str = FACILITY_TOKENS_KEY,
+) -> None:
     feature_df = files.read_import(import_file)
-    features, state = publication.features, publication.state
+    tokens_df = files.read_import(tokens_file)
+    features, tokens, state = publication.features, publication.facility_tokens, publication.state
 
-    logger.info("Starting publication to %s", features.name)
+    logger.info("Starting publication to %s and %s", features.name, tokens.name)
 
     # Known bug, kept until its own fix step: this is the hash of the import file, while extract and
     # transform compare the raw file hash (docs/feature-parity.md, "Change detection never matches").
@@ -25,6 +33,7 @@ def run(files: DatasetFiles, publication: Publication, import_file: str = IMPORT
     transaction_started_at = time.monotonic()
     with state.transaction():
         features.replace(feature_df)
+        tokens.replace(tokens_df)
         state.save(source_sha256, import_file)
 
     logger.info(

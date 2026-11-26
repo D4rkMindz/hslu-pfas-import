@@ -11,7 +11,7 @@ from fsspec.implementations.local import LocalFileSystem
 
 from pfas_import import logging_setup
 from pfas_import.config import GCS_S3_ENDPOINT, Target, get_settings
-from pfas_import.repository.features import FeatureRepository
+from pfas_import.repository.features import FACILITY_TOKENS_TABLE, FeatureRepository
 from pfas_import.repository.files import DatasetFiles
 from pfas_import.repository.ingestion_state import (
     BigQueryIngestionState,
@@ -30,9 +30,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Publication:
-    """Where `load` publishes: the features and the ingestion state, in the same store."""
+    """Where `load` publishes: the features, the facility tokens and the ingestion state, in the same store."""
 
     features: FeatureRepository
+    facility_tokens: FeatureRepository
     state: IngestionStateRepository
 
 
@@ -149,11 +150,15 @@ def publication() -> Iterator[Publication]:
     writes both in one transaction."""
     if target() == "cloud":
         with _bigquery() as store:
-            yield Publication(FeatureRepository(store), BigQueryIngestionState(store))
+            yield Publication(
+                FeatureRepository(store), FeatureRepository(store, FACILITY_TOKENS_TABLE), BigQueryIngestionState(store)
+            )
         return
 
     with _postgres() as store:
-        yield Publication(FeatureRepository(store), PostgresIngestionState(store))
+        yield Publication(
+            FeatureRepository(store), FeatureRepository(store, FACILITY_TOKENS_TABLE), PostgresIngestionState(store)
+        )
 
 
 @contextmanager

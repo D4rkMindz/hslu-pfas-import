@@ -13,7 +13,7 @@ from kestra import Kestra
 
 from pfas_import.pipeline import extract, load, transform
 from pfas_import.repository import factory
-from pfas_import.repository.files import IMPORT_SOURCE_KEY, RAW_SOURCE_KEY
+from pfas_import.repository.files import FACILITY_TOKENS_KEY, IMPORT_SOURCE_KEY, RAW_SOURCE_KEY
 from pfas_import.verification import verify
 
 logger = logging.getLogger(__name__)
@@ -46,6 +46,9 @@ def build_parser() -> argparse.ArgumentParser:
     transform_parser.add_argument("-t", "--target-file", type=str, required=False,
                                   help="Target file in S3_IMPORT_BUCKET, default: last_import.parquet",
                                   default=IMPORT_SOURCE_KEY)
+    transform_parser.add_argument("--tokens-file", type=str, required=False,
+                                  help="Facility token file in S3_IMPORT_BUCKET, default: last_facility_tokens.parquet",
+                                  default=FACILITY_TOKENS_KEY)
 
     load_parser = subcommands.add_parser(
         "load", help="Publish `source-file` to PostgreSQL (TARGET=local) or BigQuery (TARGET=cloud)."
@@ -53,6 +56,9 @@ def build_parser() -> argparse.ArgumentParser:
     load_parser.add_argument("-t", "--source-file", type=str, required=False,
                              help="Source file in S3_IMPORT_BUCKET, default: last_import.parquet",
                              default=IMPORT_SOURCE_KEY)
+    load_parser.add_argument("--tokens-file", type=str, required=False,
+                             help="Facility token file in S3_IMPORT_BUCKET, default: last_facility_tokens.parquet",
+                             default=FACILITY_TOKENS_KEY)
 
     verify_parser = subcommands.add_parser(
         "verify",
@@ -91,12 +97,13 @@ def main() -> None:
         case "transform":
             with factory.ingestion_state() as state:
                 result = transform.run(
-                    factory.dataset_files(), state, args.raw_source_file, args.target_file
+                    factory.dataset_files(), state, args.raw_source_file, args.target_file,
+                    tokens_file=args.tokens_file,
                 )
             emit(args.command, result, args.output)
         case "load":
             with factory.publication() as publication:
-                load.run(factory.dataset_files(), publication, args.source_file)
+                load.run(factory.dataset_files(), publication, args.source_file, args.tokens_file)
         case "verify":
             if args.print_sql:
                 sys.exit(verify.print_sql())

@@ -4,7 +4,7 @@ The modules are parsed, never imported, so the test needs no settings and no inf
 
 1. The pure layer (`domain/` and `verification/checks.py`) imports no configuration, storage, repository,
    network or Kestra module. It stays testable without I/O, and a change of backend never touches it.
-2. Only the repository layer names the tables `pfas_features` and `pfas_ingestion_state`. One place knows
+2. Only the repository layer names the tables `pfas_features`, `pfas_facility_tokens` and `pfas_ingestion_state`. One place knows
    the table names, so renaming or moving a table touches one module.
 3. Only `repository/factory.py` imports `pfas_import.config`. One place reads the configuration; every
    other module receives its values as arguments, so importing a module never needs a `.env`.
@@ -34,7 +34,7 @@ PURE_FORBIDDEN: tuple[str, ...] = (
     "google",
     "kestra",
 )
-TABLE_NAMES: tuple[str, ...] = ("pfas_features", "pfas_ingestion_state")
+TABLE_NAMES: tuple[str, ...] = ("pfas_features", "pfas_facility_tokens", "pfas_ingestion_state")
 
 
 @dataclass(frozen=True)

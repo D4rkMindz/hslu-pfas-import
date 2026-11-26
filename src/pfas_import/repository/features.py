@@ -1,5 +1,5 @@
-"""The published feature table, in the feature store TARGET selects. The table is the contract
-with the data science project `pfas_trace`."""
+"""The published tables, in the feature store TARGET selects: the feature table and the facility tokens.
+Both are the contract with the data science project `pfas_trace`, which joins them on `location_id`."""
 from collections.abc import Sequence
 from typing import Any
 
@@ -10,6 +10,7 @@ from pfas_import.domain.sql_dialect import Dialect
 from pfas_import.storage.base import FeatureStore
 
 FEATURE_TABLE: str = "pfas_features"
+FACILITY_TOKENS_TABLE: str = "pfas_facility_tokens"
 
 
 class FeatureRepository:
@@ -37,5 +38,5 @@ class FeatureRepository:
 
     def replace(self, df: pd.DataFrame) -> None:
         if df.empty:
-            raise EmptyFeatureTable("Feature DataFrame is empty; refusing to replace current data.")
+            raise EmptyFeatureTable(f"DataFrame for {self.table} is empty; refusing to replace current data.")
         self.store.replace(self.table, df)

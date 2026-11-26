@@ -7,6 +7,8 @@ from pfas_import.storage.object_store import ObjectStore
 
 RAW_SOURCE_KEY: str = "last_download.parquet"
 IMPORT_SOURCE_KEY: str = "last_import.parquet"
+# The facility tokens of the same transform run, published as their own table.
+FACILITY_TOKENS_KEY: str = "last_facility_tokens.parquet"
 
 
 class DatasetFiles:

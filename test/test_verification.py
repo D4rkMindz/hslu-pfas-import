@@ -300,7 +300,7 @@ class TestTransformContract:
         def record(category, lat, lon, **extra):
             return {
                 "category": category, "country": "France", "lat": lat, "lon": lon, "date": "2024-05-01",
-                "name": f"{category} {lat}", "city": "x", "pfas_sum": 1.0, "matrix": "Groundwater",
+                "year": 2024, "name": f"{category} {lat}", "city": "x", "pfas_sum": 1.0, "matrix": "Groundwater",
                 "unit": "ng/l", "type": "Sampling location", "sector": None, **extra,
             }
 
@@ -309,10 +309,10 @@ class TestTransformContract:
             record("Measurement", 48.86, 2.36, pfas_sum=0.0),
             record("Measurement", 45.76, 4.83, matrix="Surface water"),
             record("Measurement", 16.25, -61.55),  # Guadeloupe: dropped
-            record("PFAS production facility", 48.90, 2.40, date=None),
-            record("Known PFAS user", 45.70, 4.80, date=None),
-            record("Presumptive", 48.80, 2.30, date=None, sector="Chemical industry"),
-            record("Presumptive", 16.20, -61.50, date=None, sector="Overseas only"),  # dropped
+            record("PFAS production facility", 48.90, 2.40, date=None, year=None),
+            record("Known PFAS user", 45.70, 4.80, date=None, year=None),
+            record("Presumptive", 48.80, 2.30, date=None, year=None, sector="Chemical industry"),
+            record("Presumptive", 16.20, -61.50, date=None, year=None, sector="Overseas only"),  # dropped
         ])
 
     def test_transform_output_passes(self):

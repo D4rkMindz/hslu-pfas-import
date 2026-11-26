@@ -1,6 +1,17 @@
-"""Implements the whole data transformation process."""
+"""Implements the whole data transformation process.
+
+`transform_all` builds the two published tables from the raw dataset:
+
+- `features` (pfas_features): one row per measurement with the nearest-source distances and band counts
+  per source group, plus `year` and `location_id`
+- `facility_tokens` (pfas_facility_tokens): one row per (location, rank) for the K_FACILITIES nearest
+  facilities within MAX_FACILITY_KM, the input of the facility transformer in `pfas_trace`
+
+`transform` returns only the features, for callers that need just that table.
+"""
 import logging
 import re
+from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
@@ -29,8 +40,31 @@ MAX_PREFIX_LENGTH: int = POSTGRES_MAX_IDENTIFIER_LENGTH - max(
 )
 NOT_ELSEWHERE_CLASSIFIED: str = "_n_e_c"
 MEASUREMENT_COLUMNS: list[str] = [
-    "date", "lat", "lon", "name", "city", "pfas_sum", "matrix", "unit", "type", "sector",
+    "date", "year", "lat", "lon", "name", "city", "pfas_sum", "matrix", "unit", "type", "sector",
 ]
+LOCATION_ID_COLUMN: str = "location_id"
+
+# Facility tokens: the K nearest facilities of a measurement location, up to MAX_FACILITY_KM away.
+# With K=32 the median location keeps all facilities within 50 km (median count 17, p90 51).
+K_FACILITIES: int = 32
+MAX_FACILITY_KM: float = 100.0
+PRODUCER_CATEGORY: str = "PFAS production facility"
+USER_CATEGORY: str = "Known PFAS user"
+PRESUMPTIVE_CATEGORY: str = "Presumptive"
+# Token groups of the tier-1 categories; presumptive facilities use their tier-2 prefix.
+TIER1_GROUPS: dict[str, str] = {PRODUCER_CATEGORY: "producer", USER_CATEGORY: "user"}
+FACILITY_TOKEN_COLUMNS: list[str] = [
+    LOCATION_ID_COLUMN, "rank", "source_group", "category", "type",
+    "distance_km", "bearing_sin", "bearing_cos",
+]
+
+
+@dataclass(frozen=True)
+class TransformOutput:
+    """Both published tables of one transform run; they share `location_id`."""
+
+    features: pd.DataFrame
+    facility_tokens: pd.DataFrame
 
 
 def _filter_france(df: pd.DataFrame) -> pd.DataFrame:
@@ -201,15 +235,15 @@ def _extract_tier1_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # Source records must not be filtered by measurement-date requirements.
     producers_df: pd.DataFrame = df.loc[
-        df["category"] == "PFAS production facility"
+        df["category"] == PRODUCER_CATEGORY
     ]
 
     users_df: pd.DataFrame = df.loc[
-        df["category"] == "Known PFAS user"
+        df["category"] == USER_CATEGORY
     ]
 
     presumptives_df: pd.DataFrame = df.loc[
-        df["category"] == "Presumptive"
+        df["category"] == PRESUMPTIVE_CATEGORY
     ]
 
     valid_measurements, measurement_coords = (
@@ -234,14 +268,10 @@ def _extract_tier1_features(df: pd.DataFrame) -> pd.DataFrame:
     return tier1_feature_df
 
 
-def _extract_tier2_features(
-    df: pd.DataFrame,
-    feature_df: pd.DataFrame,
-) -> pd.DataFrame:
-    """Extract TierB: proximity to dynamic presumptive source groups."""
-
+def _presumptive_with_groups(df: pd.DataFrame) -> pd.DataFrame:
+    """Presumptive sources with their tier-2 source group in `_source_group`; rows without one are dropped."""
     presumptive_df: pd.DataFrame = df.loc[
-        df["category"] == "Presumptive"
+        df["category"] == PRESUMPTIVE_CATEGORY
     ].copy()
 
     # Use sector when available; otherwise fall back to type.
@@ -261,15 +291,13 @@ def _extract_tier2_features(
 
     presumptive_df["_source_group"] = sectors.fillna(source_types)
 
-    presumptive_df = presumptive_df.loc[
+    return presumptive_df.loc[
         presumptive_df["_source_group"].notna()
     ]
 
-    valid_measurements, measurement_coords = (
-        _get_measurement_coordinates(feature_df)
-    )
 
-    # Normalize all source-group names and detect naming collisions.
+def _tier2_prefixes(presumptive_df: pd.DataFrame) -> dict[str, str]:
+    """Map every tier-2 column prefix to its source group; fail on empty prefixes and collisions."""
     group_names: dict[str, str] = {}
 
     for source_group in sorted(
@@ -290,6 +318,23 @@ def _extract_tier2_features(
             )
 
         group_names[prefix] = str(source_group)
+
+    return group_names
+
+
+def _extract_tier2_features(
+    df: pd.DataFrame,
+    feature_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Extract TierB: proximity to dynamic presumptive source groups."""
+
+    presumptive_df = _presumptive_with_groups(df)
+
+    valid_measurements, measurement_coords = (
+        _get_measurement_coordinates(feature_df)
+    )
+
+    group_names = _tier2_prefixes(presumptive_df)
 
     for prefix, source_group in group_names.items():
         source_df: pd.DataFrame = presumptive_df.loc[
@@ -344,8 +389,108 @@ def _compress_dataframe(df : pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def transform(df: pd.DataFrame) -> pd.DataFrame:
-    """Extract TierA and TierB features from the raw dataset."""
+def _add_location_ids(feature_df: pd.DataFrame) -> None:
+    """Number the unique (lat, lon) of the measurements 0..n-1 in sorted order (dense rank)."""
+    feature_df[LOCATION_ID_COLUMN] = (
+        feature_df.groupby(["lat", "lon"], sort=True).ngroup().astype(np.int64)
+    )
+
+
+def _facilities(df: pd.DataFrame) -> pd.DataFrame:
+    """All facilities with valid coordinates: lat, lon, source_group, category, type."""
+    tier1 = df.loc[df["category"].isin(list(TIER1_GROUPS))].copy()
+    tier1["source_group"] = tier1["category"].map(TIER1_GROUPS)
+
+    presumptive = _presumptive_with_groups(df)
+    prefix_of = {group: prefix for prefix, group in _tier2_prefixes(presumptive).items()}
+    presumptive["source_group"] = presumptive["_source_group"].astype(str).map(prefix_of)
+
+    facilities = pd.concat([tier1, presumptive], ignore_index=True)
+    facilities["lat"] = pd.to_numeric(facilities["lat"], errors="coerce")
+    facilities["lon"] = pd.to_numeric(facilities["lon"], errors="coerce")
+    valid = (
+        facilities["lat"].between(-90, 90)
+        & facilities["lon"].between(-180, 180)
+    )
+    facilities = facilities.loc[valid, ["lat", "lon", "source_group", "category", "type"]]
+    facilities["type"] = facilities["type"].astype("string").str.strip()
+    # Sorted so that ties in distance always resolve to the same facility order.
+    return facilities.sort_values(
+        ["lat", "lon", "source_group", "category", "type"], kind="mergesort"
+    ).reset_index(drop=True)
+
+
+def _bearings(from_rad: np.ndarray, to_rad: np.ndarray) -> np.ndarray:
+    """Initial great-circle bearing (radians, clockwise from north) from each `from` point to each `to` point.
+
+    Both arrays hold (lat, lon) in radians on the last axis and broadcast against each other.
+    """
+    lat1, lon1 = from_rad[..., 0], from_rad[..., 1]
+    lat2, lon2 = to_rad[..., 0], to_rad[..., 1]
+    d_lon = lon2 - lon1
+    return np.arctan2(
+        np.sin(d_lon) * np.cos(lat2),
+        np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(d_lon),
+    )
+
+
+def _facility_tokens(mainland_df: pd.DataFrame, feature_df: pd.DataFrame) -> pd.DataFrame:
+    """Long table of the K_FACILITIES nearest facilities within MAX_FACILITY_KM per measurement location.
+
+    One row per (location_id, rank), rank 1 = nearest. Locations without a facility in range have no
+    rows. Must run before `_compress_dataframe`, which may round the coordinates.
+    """
+    locations = (
+        feature_df[[LOCATION_ID_COLUMN, "lat", "lon"]]
+        .drop_duplicates(LOCATION_ID_COLUMN)
+        .sort_values(LOCATION_ID_COLUMN)
+    )
+    facilities = _facilities(mainland_df)
+    empty = pd.DataFrame({column: pd.Series(dtype=dtype) for column, dtype in (
+        (LOCATION_ID_COLUMN, "int64"), ("rank", "int64"), ("source_group", "string"),
+        ("category", "string"), ("type", "string"), ("distance_km", "float64"),
+        ("bearing_sin", "float64"), ("bearing_cos", "float64"),
+    )})
+    if facilities.empty or locations.empty:
+        return empty
+
+    facility_rad = np.radians(facilities[["lat", "lon"]].to_numpy(dtype=np.float64))
+    location_rad = np.radians(locations[["lat", "lon"]].to_numpy(dtype=np.float64))
+    location_ids = locations[LOCATION_ID_COLUMN].to_numpy()
+    k = min(K_FACILITIES, len(facilities))
+    tree = BallTree(facility_rad, metric="haversine")
+
+    parts: list[pd.DataFrame] = []
+    for start in range(0, len(locations), BATCH_SIZE):
+        batch = location_rad[start:start + BATCH_SIZE]
+        distances_rad, indices = tree.query(batch, k=k)
+        distances_km = distances_rad * EARTH_RADIUS_KM
+        in_range = distances_km <= MAX_FACILITY_KM
+
+        rows, slots = np.nonzero(in_range)
+        facility_index = indices[rows, slots]
+        bearings = _bearings(batch[rows], facility_rad[facility_index])
+
+        chosen = facilities.iloc[facility_index]
+        parts.append(pd.DataFrame({
+            LOCATION_ID_COLUMN: location_ids[start:start + BATCH_SIZE][rows],
+            "rank": slots + 1,
+            "source_group": chosen["source_group"].to_numpy(),
+            "category": chosen["category"].to_numpy(),
+            "type": chosen["type"].to_numpy(),
+            "distance_km": distances_km[rows, slots],
+            "bearing_sin": np.sin(bearings),
+            "bearing_cos": np.cos(bearings),
+        }))
+
+    tokens = pd.concat(parts, ignore_index=True) if parts else empty
+    for column in ("source_group", "category", "type"):
+        tokens[column] = tokens[column].astype("string")
+    return tokens[FACILITY_TOKEN_COLUMNS]
+
+
+def transform_all(df: pd.DataFrame) -> TransformOutput:
+    """Extract the feature table and the facility tokens from the raw dataset."""
     mainland_df = _filter_mainland_france(df)
 
     logger.info("Starting tier1 feature extraction...")
@@ -354,10 +499,25 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
     logger.info("Starting tier2 feature extraction...")
     feature_df = _extract_tier2_features(mainland_df, feature_df)
 
-    logger.info("Converting to datetime...")
-    feature_df['date'] = pd.to_datetime(feature_df["date"])
+    logger.info("Converting to datetime and adding year and location ids...")
+    feature_df["date"] = pd.to_datetime(feature_df["date"])
+    feature_df["year"] = pd.to_numeric(feature_df["year"], errors="coerce").astype("Int64")
+    _add_location_ids(feature_df)
 
-    logger.info("Compressing dataframe...")
+    logger.info("Starting facility token extraction...")
+    tokens_df = _facility_tokens(mainland_df, feature_df)
+    logger.info(
+        "Facility tokens: %s rows for %s of %s locations",
+        len(tokens_df), tokens_df[LOCATION_ID_COLUMN].nunique(), feature_df[LOCATION_ID_COLUMN].nunique(),
+    )
+
+    logger.info("Compressing dataframes...")
     feature_df = _compress_dataframe(feature_df)
+    tokens_df = _compress_dataframe(tokens_df)
 
-    return feature_df
+    return TransformOutput(features=feature_df, facility_tokens=tokens_df)
+
+
+def transform(df: pd.DataFrame) -> pd.DataFrame:
+    """Extract TierA and TierB features from the raw dataset (the `features` of `transform_all`)."""
+    return transform_all(df).features

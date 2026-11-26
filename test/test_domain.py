@@ -95,17 +95,17 @@ def raw_dataset(*presumptive_sectors: str) -> pd.DataFrame:
     def record(category, lat, lon, **extra):
         return {
             "category": category, "country": "France", "lat": lat, "lon": lon, "date": "2024-05-01",
-            "name": f"{category} {lat}", "city": "x", "pfas_sum": 1.0, "matrix": "Groundwater",
+            "year": 2024, "name": f"{category} {lat}", "city": "x", "pfas_sum": 1.0, "matrix": "Groundwater",
             "unit": "ng/l", "type": "Sampling location", "sector": None, **extra,
         }
 
     return pd.DataFrame([
         record("Measurement", 48.85, 2.35),
         record("Measurement", 45.76, 4.83),
-        record("PFAS production facility", 48.90, 2.40, date=None),
-        record("Known PFAS user", 45.70, 4.80, date=None),
+        record("PFAS production facility", 48.90, 2.40, date=None, year=None),
+        record("Known PFAS user", 45.70, 4.80, date=None, year=None),
         *(
-            record("Presumptive", 48.80 + i / 100, 2.30, date=None, sector=sector)
+            record("Presumptive", 48.80 + i / 100, 2.30, date=None, year=None, sector=sector)
             for i, sector in enumerate(presumptive_sectors)
         ),
     ])
