@@ -68,6 +68,9 @@ def build_parser() -> argparse.ArgumentParser:
     verify_parser.add_argument("-t", "--source-file", type=str, required=False,
                                help="Source file in S3_IMPORT_BUCKET, default: last_import.parquet",
                                default=IMPORT_SOURCE_KEY)
+    verify_parser.add_argument("--tokens-file", type=str, required=False,
+                               help="Facility token file in S3_IMPORT_BUCKET, default: last_facility_tokens.parquet",
+                               default=FACILITY_TOKENS_KEY)
     verify_parser.add_argument("--print-sql", action="store_true",
                                help="Only print the SQL of the rule checks (e.g. for pgAdmin), run nothing.")
 
@@ -107,7 +110,7 @@ def main() -> None:
         case "verify":
             if args.print_sql:
                 sys.exit(verify.print_sql())
-            result = verify.main(args.source_file)
+            result = verify.main(args.source_file, args.tokens_file)
             emit(args.command, result, args.output)
             sys.exit(result.exit_code)
 

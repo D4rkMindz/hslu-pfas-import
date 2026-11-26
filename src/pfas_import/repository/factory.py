@@ -37,6 +37,14 @@ class Publication:
     state: IngestionStateRepository
 
 
+@dataclass(frozen=True)
+class PublishedTables:
+    """What `verify` reads back: both published tables, in the same store."""
+
+    features: FeatureRepository
+    facility_tokens: FeatureRepository
+
+
 def configure_logging(mode: logging_setup.OutputMode) -> None:
     settings = get_settings()
     logging_setup.configure(settings.log_level, settings.log_format, mode)
@@ -164,10 +172,17 @@ def publication() -> Iterator[Publication]:
 @contextmanager
 def published_features() -> Iterator[FeatureRepository]:
     """`local` = PostgreSQL, `cloud` = BigQuery."""
+    with published_tables() as tables:
+        yield tables.features
+
+
+@contextmanager
+def published_tables() -> Iterator[PublishedTables]:
+    """Both published tables on one store connection. `local` = PostgreSQL, `cloud` = BigQuery."""
     if target() == "cloud":
         with _bigquery() as store:
-            yield FeatureRepository(store)
+            yield PublishedTables(FeatureRepository(store), FeatureRepository(store, FACILITY_TOKENS_TABLE))
         return
 
     with _postgres() as store:
-        yield FeatureRepository(store)
+        yield PublishedTables(FeatureRepository(store), FeatureRepository(store, FACILITY_TOKENS_TABLE))

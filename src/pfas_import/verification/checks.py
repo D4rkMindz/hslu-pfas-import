@@ -22,10 +22,23 @@ from pfas_import.domain.sql_dialect import Dialect
 
 # Measurement columns of the feature table (contract with the data science project `pfas_trace`).
 BASE_COLUMNS: tuple[str, ...] = (
-    "date", "lat", "lon", "name", "city", "pfas_sum", "matrix", "unit", "type", "sector",
+    "date", "year", "lat", "lon", "name", "city", "pfas_sum", "matrix", "unit", "type", "sector", "location_id",
 )
 # These may never be NULL. `city` and `sector` may, they are empty in the source.
-NOT_NULL_COLUMNS: tuple[str, ...] = ("date", "lat", "lon", "name", "pfas_sum", "matrix", "unit")
+NOT_NULL_COLUMNS: tuple[str, ...] = (
+    "date", "year", "lat", "lon", "name", "pfas_sum", "matrix", "unit", "location_id",
+)
+
+# Facility tokens: the nearest facilities per measurement location, joined to the features on location_id.
+TOKEN_COLUMNS: tuple[str, ...] = (
+    "location_id", "rank", "source_group", "category", "type", "distance_km", "bearing_sin", "bearing_cos",
+)
+TOKEN_NOT_NULL_COLUMNS: tuple[str, ...] = TOKEN_COLUMNS
+MAX_TOKEN_RANK = 32
+MAX_TOKEN_DISTANCE_KM = 100
+# Bearings are stored as float32, so sin/cos may exceed 1 by a rounding error.
+UNIT_TOLERANCE = 1e-6
+TOKEN_LABEL = "facility tokens: "
 
 # Tier-1 source categories. Tier-2 prefixes (presumptive sectors) depend on the data.
 TIER1_PREFIXES: tuple[str, ...] = ("producer", "user", "presumptive")
@@ -213,8 +226,13 @@ def _first(items: Sequence[str], limit: int = 5) -> str:
 
 
 def compare(
-    file_columns: Sequence[str], table_columns: Sequence[str], expected: Aggregates, actual: Aggregates
+    file_columns: Sequence[str],
+    table_columns: Sequence[str],
+    expected: Aggregates,
+    actual: Aggregates,
+    label: str = "",
 ) -> list[CheckResult]:
+    """Reconciliation results; `label` prefixes every check name (e.g. TOKEN_LABEL)."""
     missing = [c for c in file_columns if c not in table_columns]
     extra = [c for c in table_columns if c not in file_columns]
     column_detail = "; ".join(
@@ -237,31 +255,31 @@ def compare(
 
     return [
         CheckResult(
-            "reconciliation: row count equals the import file",
+            f"{label}reconciliation: row count equals the import file",
             Severity.ERROR,
             abs(expected.rows - actual.rows),
             f"file {expected.rows}, table {actual.rows}" if expected.rows != actual.rows else "",
         ),
         CheckResult(
-            "reconciliation: column names equal the import file",
+            f"{label}reconciliation: column names equal the import file",
             Severity.ERROR,
             len(missing) + len(extra),
             column_detail,
         ),
         CheckResult(
-            "reconciliation: non-NULL count per column equals the import file",
+            f"{label}reconciliation: non-NULL count per column equals the import file",
             Severity.ERROR,
             len(null_diff),
             _first(null_diff),
         ),
         CheckResult(
-            "reconciliation: sum per numeric column equals the import file",
+            f"{label}reconciliation: sum per numeric column equals the import file",
             Severity.ERROR,
             len(sum_diff),
             _first(sum_diff),
         ),
         CheckResult(
-            "reconciliation: date range equals the import file",
+            f"{label}reconciliation: date range equals the import file",
             Severity.ERROR,
             0 if expected_dates == actual_dates else 1,
             "" if expected_dates == actual_dates
@@ -336,6 +354,13 @@ def rule_checks_sql(table: str, columns: Sequence[str], dialect: Dialect, today:
             _count(f"CAST({q('date')} AS DATE) > DATE '{today.isoformat()}'"),
         )
 
+    if {"year", "date"} <= present:
+        add(
+            "year equals the year of date",
+            Severity.ERROR,
+            _count(f"{q('year')} <> EXTRACT(YEAR FROM {q('date')})"),
+        )
+
     for prefix in complete_prefixes(columns):
         distance = q(f"{prefix}_{DISTANCE_SUFFIX}")
         bands = [q(c) for c in band_columns(prefix)]
@@ -393,6 +418,10 @@ def rule_checks_sql(table: str, columns: Sequence[str], dialect: Dialect, today:
             ),
         )
 
+    return _union(selects)
+
+
+def _union(selects: Sequence[tuple[str, Severity, str, str, str]]) -> str:
     body = "\nUNION ALL\n".join(
         _select(order, check, severity, failures, source, detail)
         for order, (check, severity, failures, source, detail) in enumerate(selects, start=1)
@@ -401,6 +430,106 @@ def rule_checks_sql(table: str, columns: Sequence[str], dialect: Dialect, today:
         "-- Checks of `pfas_import verify`. One row per check; failures = 0 means PASS.\n"
         f"{body}\nORDER BY check_order"
     )
+
+
+# ---------------------------------------------------------------------------------------------
+# Facility tokens
+# ---------------------------------------------------------------------------------------------
+
+def check_token_schema(columns: Sequence[str]) -> list[CheckResult]:
+    missing = [c for c in TOKEN_COLUMNS if c not in set(columns)]
+    return [
+        CheckResult(
+            f"{TOKEN_LABEL}schema: all token columns are present",
+            Severity.ERROR,
+            len(missing),
+            "missing: " + ", ".join(missing) if missing else "",
+        )
+    ]
+
+
+def token_rule_checks_sql(table: str, features_table: str, columns: Sequence[str], dialect: Dialect) -> str:
+    """Rule checks of the facility token table; `features_table` is the published feature table.
+
+    Same result shape as `rule_checks_sql`. Checks only the columns that exist; the schema check
+    reports the missing ones.
+    """
+    q = dialect.quote
+    present = set(columns)
+    selects: list[tuple[str, Severity, str, str, str]] = []
+
+    def add(check: str, failures: str, source: str = table) -> None:
+        selects.append((f"{TOKEN_LABEL}{check}", Severity.ERROR, failures, source, "''"))
+
+    not_null = [c for c in TOKEN_NOT_NULL_COLUMNS if c in present]
+    if not_null:
+        add(f"no NULL in {', '.join(not_null)}", _count(" OR ".join(f"{q(c)} IS NULL" for c in not_null)))
+
+    if "rank" in present:
+        add(
+            f"rank is a whole number in 1..{MAX_TOKEN_RANK}",
+            _count(f"{q('rank')} < 1 OR {q('rank')} > {MAX_TOKEN_RANK} OR {q('rank')} <> FLOOR({q('rank')})"),
+        )
+
+    if "distance_km" in present:
+        distance = q("distance_km")
+        add(
+            f"distance within 0..{MAX_TOKEN_DISTANCE_KM} km",
+            _count(f"{distance} < 0 OR {distance} > {MAX_TOKEN_DISTANCE_KM + BAND_TOLERANCE_KM}"),
+        )
+
+    for column in ("bearing_sin", "bearing_cos"):
+        if column in present:
+            add(f"{column} within -1..1", _count(f"ABS({q(column)}) > {1 + UNIT_TOLERANCE}"))
+
+    if {"bearing_sin", "bearing_cos"} <= present:
+        add(
+            "bearing_sin² + bearing_cos² = 1",
+            _count(f"ABS({q('bearing_sin')} * {q('bearing_sin')} + {q('bearing_cos')} * {q('bearing_cos')} - 1)"
+                   f" > {10 * UNIT_TOLERANCE}"),
+        )
+
+    if {"location_id", "rank"} <= present:
+        duplicates = (
+            f"(SELECT COUNT(*) AS n FROM {table}\n"
+            f"      GROUP BY {q('location_id')}, {q('rank')}\n"
+            f"      HAVING COUNT(*) > 1) AS duplicate_ranks"
+        )
+        add("(location_id, rank) is unique", "COALESCE(SUM(n - 1), 0)", source=duplicates)
+
+    if {"location_id", "rank", "distance_km"} <= present:
+        # Rank 1 is the nearest facility: a higher rank is never closer than the rank before it.
+        previous = (
+            f"(SELECT {q('distance_km')} AS distance_km,\n"
+            f"        LAG({q('distance_km')}) OVER (PARTITION BY {q('location_id')} ORDER BY {q('rank')})"
+            f" AS previous_km,\n"
+            f"        {q('rank')} AS token_rank,\n"
+            f"        LAG({q('rank')}) OVER (PARTITION BY {q('location_id')} ORDER BY {q('rank')}) AS previous_rank\n"
+            f"      FROM {table}) AS ranked"
+        )
+        add(
+            "ranks are consecutive from 1 and sorted by distance",
+            _count(
+                "(previous_rank IS NULL AND token_rank <> 1) "
+                "OR (previous_rank IS NOT NULL AND token_rank <> previous_rank + 1) "
+                f"OR (previous_km IS NOT NULL AND distance_km < previous_km - {BAND_TOLERANCE_KM})"
+            ),
+            source=previous,
+        )
+
+    if "location_id" in present:
+        # A join instead of NOT IN (subquery): BigQuery rejects subqueries inside aggregate functions.
+        joined = (
+            f"(SELECT known.location_id AS known_id\n"
+            f"      FROM {table} AS tokens\n"
+            f"      LEFT JOIN (SELECT DISTINCT {q('location_id')} AS location_id FROM {features_table}) AS known\n"
+            f"        ON tokens.{q('location_id')} = known.location_id) AS token_locations"
+        )
+        add("every location_id exists in the feature table", _count("known_id IS NULL"), source=joined)
+
+    if not selects:
+        return ""
+    return _union(selects)
 
 
 def rule_results(rows: Iterable[Sequence[Any]]) -> list[CheckResult]:
