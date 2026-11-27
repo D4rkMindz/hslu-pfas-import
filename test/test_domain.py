@@ -5,6 +5,7 @@ from typing import Any
 
 import pandas as pd
 import pytest
+from pandas.testing import assert_frame_equal
 
 from pfas_import.domain.change import ChangeDecision, ChangePolicy
 from pfas_import.domain.errors import (
@@ -13,7 +14,7 @@ from pfas_import.domain.errors import (
     InvalidIdentifier,
     SourceGroupCollision,
 )
-from pfas_import.domain.features import transform
+from pfas_import.domain.features import RAW_COLUMNS, transform
 from pfas_import.domain.sql_dialect import BIGQUERY, POSTGRES
 from pfas_import.repository.features import FeatureRepository
 from pfas_import.storage.base import FeatureStore
@@ -103,6 +104,12 @@ class TestTransformErrors:
         features = transform(raw_dataset("Metal works", "Chemical industry"))
 
         assert "metal_works_distance_min" in features.columns
+
+    def test_needs_only_the_raw_columns(self):
+        """The pipeline reads only RAW_COLUMNS, so the transform must not use any other column."""
+        raw = raw_dataset("Metal works").assign(details="long free text")
+
+        assert_frame_equal(transform(raw[RAW_COLUMNS]), transform(raw))
 
     @pytest.mark.parametrize(
         "sectors",

@@ -43,6 +43,9 @@ MEASUREMENT_COLUMNS: list[str] = [
     "date", "year", "lat", "lon", "name", "city", "pfas_sum", "matrix", "unit", "type", "sector",
 ]
 LOCATION_ID_COLUMN: str = "location_id"
+# The raw columns transform_all reads. The others are mostly free text (details, pfas_values, source_text)
+# that took ~3 GB in memory and got the task OOM-killed.
+RAW_COLUMNS: list[str] = ["category", "country", *MEASUREMENT_COLUMNS]
 
 # Facility tokens: the K nearest facilities of a measurement location, up to MAX_FACILITY_KM away.
 # With K=32 the median location keeps all facilities within 50 km (median count 17, p90 51).
@@ -67,8 +70,8 @@ class TransformOutput:
     facility_tokens: pd.DataFrame
 
 
-def _filter_mainland_france(df: pd.DataFrame) -> pd.DataFrame:
-    """Keep measurements and sources inside mainland France (incl. Corsica)."""
+def filter_mainland_france(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep measurements and sources inside mainland France (incl. Corsica); also used per read batch."""
     is_france: pd.Series = df["country"] == "France"
     lat: pd.Series = pd.to_numeric(df["lat"], errors="coerce")
     lon: pd.Series = pd.to_numeric(df["lon"], errors="coerce")
@@ -77,8 +80,6 @@ def _filter_mainland_france(df: pd.DataFrame) -> pd.DataFrame:
             & lat.between(*MAINLAND_FRANCE_LAT)
             & lon.between(*MAINLAND_FRANCE_LON)
     )
-
-    logger.info("Mainland France filter: keeping %s of %s records", int(inside.sum()), int(is_france.sum()))
     return df.loc[inside]
 
 
@@ -502,7 +503,8 @@ def _facility_tokens(mainland_df: pd.DataFrame, feature_df: pd.DataFrame) -> pd.
 
 def transform_all(df: pd.DataFrame) -> TransformOutput:
     """Extract the feature table and the facility tokens from the raw dataset."""
-    mainland_df = _filter_mainland_france(df)
+    mainland_df = filter_mainland_france(df)
+    logger.info("Mainland France filter: keeping %s of %s records", len(mainland_df), len(df))
 
     logger.info("Starting tier1 feature extraction...")
     feature_df: pd.DataFrame = _extract_tier1_features(mainland_df)

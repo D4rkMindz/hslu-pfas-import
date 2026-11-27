@@ -6,15 +6,18 @@ Both backends are fsspec filesystems with the same API, so one class covers both
 import hashlib
 import logging
 import time
+from collections.abc import Callable
 from typing import IO, Any
 
 import pandas as pd
+import pyarrow.parquet as pq
 from fsspec import AbstractFileSystem
 
 logger = logging.getLogger(__name__)
 
 HASH_CHUNK_SIZE = 8 * 1024 * 1024
 HASH_LOG_INTERVAL = 64 * 1024 * 1024
+PARQUET_BATCH_ROWS = 100_000
 
 
 class ObjectStore:
@@ -80,12 +83,29 @@ class ObjectStore:
 
         return result
 
-    def read_parquet(self, bucket: str, key: str) -> pd.DataFrame:
+    def read_parquet(
+        self,
+        bucket: str,
+        key: str,
+        columns: list[str] | None = None,
+        batch_filter: Callable[[pd.DataFrame], pd.DataFrame] | None = None,
+    ) -> pd.DataFrame:
+        """Read a Parquet file; with `batch_filter`, read it in batches and keep only the filtered rows."""
         started_at = time.monotonic()
         logger.info("Reading Parquet from %s", self.url(bucket, key))
 
         with self.open(bucket, key) as source:
-            df = pd.read_parquet(source, engine="pyarrow")
+            if batch_filter is None:
+                df = pd.read_parquet(source, engine="pyarrow", columns=columns)
+            else:
+                # Only one batch of the whole file is in memory at a time, plus the rows kept so far.
+                parquet = pq.ParquetFile(source)
+                parts = [
+                    batch_filter(batch.to_pandas())
+                    for batch in parquet.iter_batches(PARQUET_BATCH_ROWS, columns=columns)
+                ]
+                empty = parquet.schema_arrow.empty_table().select(columns or parquet.schema_arrow.names)
+                df = pd.concat(parts, ignore_index=True) if parts else empty.to_pandas()
 
         logger.info(
             "Parquet loaded: %s rows, %s columns in %.1f s",

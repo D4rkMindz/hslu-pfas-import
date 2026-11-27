@@ -9,7 +9,7 @@ import time
 from dataclasses import dataclass
 
 from pfas_import.domain.change import ChangePolicy
-from pfas_import.domain.features import transform_all
+from pfas_import.domain.features import RAW_COLUMNS, filter_mainland_france, transform_all
 from pfas_import.repository.files import FACILITY_TOKENS_KEY, DatasetFiles
 from pfas_import.repository.ingestion_state import IngestionStateRepository
 
@@ -53,7 +53,7 @@ def run(
         return TransformResult(changed=False, sha256=source_sha256, rows=0)
 
     logger.info("Source changed or not yet ingested; processing dataset")
-    raw_df = files.read_raw(raw_source_file)
+    raw_df = files.read_raw(raw_source_file, columns=RAW_COLUMNS, batch_filter=filter_mainland_france)
     logger.info("Available: %s rows", len(raw_df))
 
     logger.info("Starting feature transformation")
