@@ -1,4 +1,5 @@
 """Where the Parquet files live: raw downloads in the raw bucket, feature files in the import bucket."""
+from collections.abc import Callable
 from typing import IO, Any
 
 import pandas as pd
@@ -41,8 +42,13 @@ class DatasetFiles:
     def import_sha256(self, key: str) -> str:
         return self.store.sha256(self.import_bucket, key)
 
-    def read_raw(self, key: str) -> pd.DataFrame:
-        return self.store.read_parquet(self.raw_bucket, key)
+    def read_raw(
+        self,
+        key: str,
+        columns: list[str] | None = None,
+        batch_filter: Callable[[pd.DataFrame], pd.DataFrame] | None = None,
+    ) -> pd.DataFrame:
+        return self.store.read_parquet(self.raw_bucket, key, columns, batch_filter)
 
     def read_import(self, key: str) -> pd.DataFrame:
         return self.store.read_parquet(self.import_bucket, key)

@@ -45,6 +45,32 @@ class TestObjectStore:
 
         assert_frame_equal(store.read_parquet("import", "features.parquet"), small_frame())
 
+    def test_read_parquet_reads_only_the_given_columns(self, store):
+        store.ensure_bucket("import")
+        store.write_parquet("import", "features.parquet", small_frame())
+
+        df = store.read_parquet("import", "features.parquet", columns=["name", "count"])
+
+        assert_frame_equal(df, small_frame()[["name", "count"]])
+
+    @pytest.mark.parametrize("min_count, expected_names", [(2, ["b", "c"]), (99, [])])
+    def test_read_parquet_filters_each_batch(self, store, monkeypatch, min_count, expected_names):
+        monkeypatch.setattr("pfas_import.storage.object_store.PARQUET_BATCH_ROWS", 2)
+        store.ensure_bucket("import")
+        store.write_parquet("import", "features.parquet", small_frame())
+        batch_sizes = []
+
+        def keep(batch: pd.DataFrame) -> pd.DataFrame:
+            batch_sizes.append(len(batch))
+            return batch.loc[batch["count"] >= min_count]
+
+        df = store.read_parquet("import", "features.parquet", columns=["name", "count"], batch_filter=keep)
+
+        assert batch_sizes == [2, 1]
+        assert list(df.columns) == ["name", "count"]
+        assert df["name"].tolist() == expected_names
+        assert df.index.tolist() == list(range(len(expected_names)))
+
     def test_sha256_matches_the_bytes_on_disk(self, store, tmp_path):
         store.ensure_bucket("import")
         store.write_parquet("import", "features.parquet", small_frame())

@@ -157,12 +157,24 @@ wheels = [
 
 [[package]]
 name = "amazon-ion"
-version = "0.15.0"
+version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jsonconversion" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cf/23/c46168793ce4b59e77856f2cb4f84904175a41ddf12614d2dd94b47416de/amazon_ion-0.15.0.tar.gz", hash = "sha256:1b9e642232dd3a87b61ba8f17f7d7660b8ea14be03baca6e5f4d0a7fd9a01d06", size = 1334417, upload-time = "2026-09-11T01:22:28.866Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e9/8c/6905bf70564082cd51d272b36a35ae4e2fcdbfd4a44f2ded5101450f6532/amazon_ion-0.16.0.tar.gz", hash = "sha256:0d96b99f0bcce0822571612c783d7d1049775c55bc0828bf6dfee30c119041ed", size = 1334737, upload-time = "2026-11-16T00:37:28.866Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5d/16/e9a73d62ca99016534bb868ed5f483914b5e066621d834ba5c6f2fcca429/amazon_ion-0.16.0-cp314-cp314-macosx_10_13_x86_64.whl", hash = "sha256:570d4e639dde97f197311a8322e80fb75d6379215f56ee29cf9a7244be8fd888", size = 520294, upload-time = "2026-11-16T00:37:14.862Z" },
+    { url = "https://files.pythonhosted.org/packages/78/73/a410ee32da3cf61fa17fcbde03a904f87f9a9e1aeb1f131d14a7a7d20124/amazon_ion-0.16.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:32a967f8a64af372fee1e88e57edb864bcd2028bde51da4c69e9f64878fa5eea", size = 500425, upload-time = "2026-11-16T00:37:16.128Z" },
+    { url = "https://files.pythonhosted.org/packages/99/d6/e6a0968137dddf015619ef41cb14df6b2901993595e80b10dd37e77fd94b/amazon_ion-0.16.0-cp314-cp314-manylinux1_i686.manylinux_2_28_i686.manylinux_2_5_i686.whl", hash = "sha256:c22b18b30b6c43d6b2362563c5e974ec9d6d1a36afb501c3bb44940694859404", size = 625068, upload-time = "2026-11-16T00:37:17.475Z" },
+    { url = "https://files.pythonhosted.org/packages/bd/ad/854583ec7f76e2540daf1c2ab3277e7368e787988694836c2703b7703ae6/amazon_ion-0.16.0-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:f90487409bdf7ab088f63900ffb53b569815c5aba471c0aaa25383f054a77e70", size = 577410, upload-time = "2026-11-16T00:37:18.738Z" },
+    { url = "https://files.pythonhosted.org/packages/77/64/b1c94b3ba3d310ea588a798d901ba324346a361dc4411928968aa9498987/amazon_ion-0.16.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ac7bc954e7805dbaa8892daed17cf7c6f69f05112be4883094987c42534427d6", size = 575316, upload-time = "2026-11-16T00:37:20.482Z" },
+    { url = "https://files.pythonhosted.org/packages/37/04/ee6460ee370227ef0d4bf3d9d48b4d59756534593b7d052fefbf01696c7f/amazon_ion-0.16.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:d785267af2da21651e4671f6da84e305e6a7eb3d3576492234d79727466fa66c", size = 601449, upload-time = "2026-11-16T00:37:21.824Z" },
+    { url = "https://files.pythonhosted.org/packages/97/ac/f53a98c4baf938f43b39433dcf99307bd33305bf5448965c178ec6bf2c86/amazon_ion-0.16.0-cp314-cp314-musllinux_1_2_i686.whl", hash = "sha256:c837dad73a41ff7dc0cec28d5f2f6a606161dd827f4987c7e21b4a44b4c816d8", size = 636212, upload-time = "2026-11-16T00:37:23.212Z" },
+    { url = "https://files.pythonhosted.org/packages/86/8d/b1f14ea1b33a95022b152d76bac9eb99905a9f0f74ea20919a74cc112ff6/amazon_ion-0.16.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:920697218a1657f7f9e7c0e355bf3e131fdc171b3e7d4c35851ce873054a2650", size = 583226, upload-time = "2026-11-16T00:37:24.638Z" },
+    { url = "https://files.pythonhosted.org/packages/1a/21/97eb8100dba655ac6b57190beccbfec50c26de36c86b2f9e89e0bd7bd7da/amazon_ion-0.16.0-cp314-cp314-win_amd64.whl", hash = "sha256:d5ba130103048db1311b95eacb1619527512edd0dc509b4fa56d6fd96a6d9294", size = 622420, upload-time = "2026-11-16T00:37:26.056Z" },
+    { url = "https://files.pythonhosted.org/packages/5f/14/31808c4da9c12244a09f0bb36b43701746a82277fe42719c95f1ccc620be/amazon_ion-0.16.0-cp314-cp314-win_arm64.whl", hash = "sha256:ac1796e67646b33bfbac96c6890dfdf3e8a79b0775646d9a829e6cc485db08e4", size = 597665, upload-time = "2026-11-16T00:37:27.469Z" },
+]
 
 [[package]]
 name = "annotated-types"
